@@ -34,9 +34,8 @@ stable, emergent, non‑linear behavior across multiple layers.
 
 **All rights reserved.**
 
-Viewing the code is permitted.  
-Any use, modification, distribution, integration or commercial application 
-requires explicit written permission.
+Private and non‑commercial use is permitted.  
+Any commercial use, integration, distribution or monetization requires a paid license.  
 
 Unauthorized use constitutes copyright infringement.
 
