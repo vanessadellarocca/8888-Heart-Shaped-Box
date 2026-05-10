@@ -1,0 +1,2425 @@
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field, asdict
+from enum import Enum
+from typing import Dict, Any, List, Tuple, Optional
+import math
+import json
+
+# ============================================================
+# 8888FIRST — RING / YIN-YANG-CORE-MOTOR / LICHTRESONANZ /
+#              BARBELO-REFLEXION / KOHÄRENZPROJEKTION /
+#              INSTABILITÄTS-ENTFORMUNG / DAO-6 /
+#              MEMBRAN-13 / 9-21-DIAMANT
+# ------------------------------------------------------------
+# Entpersonalifiziert, relational, emergent.
+#
+# Kernänderung dieser Version:
+# - Instabilität wird VOR Rückführung in den Fluss registriert.
+# - Sie wird NICHT quarantänisiert und NICHT als Muster gespeichert.
+# - Sie darf Signal sein, aber kein Attraktor.
+# - Ihre Energie wird als entformter Release-Gradient zurückgeführt.
+# - Kohärenz ist Referenz, nicht Quarantäne.
+# ============================================================
+
+# ============================================================
+# KONSTANTEN
+# ============================================================
+
+PHI = 0.618033988749895
+PHI_INV = 1.0 / PHI
+EPSILON = 1.0 / 137.0
+TINY = 1e-12
+
+PHASE_RATE = PHI / 5.0
+TRACK_RATE = PHI / 8.0
+COUPLING_RATE = PHI / 13.0
+SEAM_RATE = PHI / 8.0
+LIGHT_RATE = PHI / 13.0
+REFLECTION_RATE = PHI / 21.0
+COHERENCE_RATE = PHI / 21.0
+
+DAO6_OUTER_RADIUS = PHI
+DAO6_INNER_RADIUS = EPSILON
+
+YANG_GATE_LOW = 4.0
+YANG_GATE_HIGH = 5.0
+YANG_GATE_CENTER = 4.5
+YANG_GATE_RADIUS = 0.5 - EPSILON
+
+YIN_GATE_LOW = 10.0
+YIN_GATE_HIGH = 11.0
+YIN_GATE_CENTER = 10.5
+YIN_GATE_RADIUS = 0.5 - EPSILON
+YIN_MID_RADIUS = 5.0 * EPSILON
+
+X_SEMANTIC_SPAN = 7.0
+Y_SEMANTIC_SPAN = 5.0
+
+# ============================================================
+# HELPERS
+# ============================================================
+
+def clamp01(x: float) -> float:
+    return max(0.0, min(1.0, float(x)))
+
+
+def clamp11(x: float) -> float:
+    return max(-1.0, min(1.0, float(x)))
+
+
+def lerp(a: float, b: float, t: float) -> float:
+    t = clamp01(t)
+    return (1.0 - t) * float(a) + t * float(b)
+
+
+def safe_mean(values: List[float], default: float = 0.0) -> float:
+    vals = [float(v) for v in values if v is not None]
+    return sum(vals) / len(vals) if vals else default
+
+
+def safe_geomean(values: List[float], default: float = 0.0) -> float:
+    vals = [max(0.0, float(v)) for v in values]
+    if not vals:
+        return default
+    if any(v <= 0.0 for v in vals):
+        return 0.0
+    prod = 1.0
+    for v in vals:
+        prod *= v
+    return prod ** (1.0 / len(vals))
+
+
+def phase_delta(current: float, target: float) -> float:
+    delta = (target - current) % 1.0
+    if delta > 0.5:
+        delta -= 1.0
+    return delta
+
+
+def phase_step(current: float, target: float, rate: float) -> float:
+    return (current + clamp01(rate) * phase_delta(current, target)) % 1.0
+
+
+def phase_distance(a: float, b: float) -> float:
+    return abs(phase_delta(a, b))
+
+
+def score_close(a: float, b: float, scale: float) -> float:
+    return clamp01(1.0 - abs(float(a) - float(b)) / max(float(scale), TINY))
+
+
+def normalize_centered(x: float, center: float, radius: float) -> float:
+    return clamp11((float(x) - float(center)) / max(float(radius), TINY))
+
+
+def clamp_open_interval(x: float, low: float, high: float, eps: float = EPSILON) -> float:
+    return max(low + eps, min(high - eps, float(x)))
+
+
+def map_yang_to_yin(x_yang: float) -> float:
+    return float(x_yang) + 6.0
+
+
+def map_yin_to_yang(x_yin: float) -> float:
+    return float(x_yin) - 6.0
+
+
+def triangular(n: int) -> int:
+    return n * (n + 1) // 2
+
+
+def extract_reflection_state(reflection_payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if not reflection_payload:
+        return {}
+    if "state" in reflection_payload and isinstance(reflection_payload["state"], dict):
+        return reflection_payload["state"]
+    return reflection_payload
+
+
+def extract_coherence_state(coherence_payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if not coherence_payload:
+        return {}
+    if "state" in coherence_payload and isinstance(coherence_payload["state"], dict):
+        return coherence_payload["state"]
+    return coherence_payload
+
+# ============================================================
+# FUNKTIONALER RING — UNPERSONIFIZIERTES 12ER-FELD
+# ============================================================
+
+@dataclass(frozen=True)
+class FunctionalRing12:
+    size: int = 12
+
+    traits: Dict[int, Dict[str, str]] = field(default_factory=lambda: {
+        1:  {"polarity": "masculine", "mode": "cardinal", "element": "fire"},
+        2:  {"polarity": "feminine",  "mode": "fixed",    "element": "earth"},
+        3:  {"polarity": "masculine", "mode": "flexible", "element": "air"},
+        4:  {"polarity": "feminine",  "mode": "cardinal", "element": "water"},
+        5:  {"polarity": "masculine", "mode": "fixed",    "element": "fire"},
+        6:  {"polarity": "feminine",  "mode": "flexible", "element": "earth"},
+        7:  {"polarity": "masculine", "mode": "cardinal", "element": "air"},
+        8:  {"polarity": "feminine",  "mode": "fixed",    "element": "water"},
+        9:  {"polarity": "masculine", "mode": "flexible", "element": "fire"},
+        10: {"polarity": "feminine",  "mode": "cardinal", "element": "earth"},
+        11: {"polarity": "masculine", "mode": "fixed",    "element": "air"},
+        12: {"polarity": "feminine",  "mode": "flexible", "element": "water"},
+    })
+
+    functions: Dict[int, str] = field(default_factory=lambda: {
+        1:  "entry impulse / fire boundary / member of 1|8 outer span",
+        2:  "geometric Venus / fixed earth / lower Y-switch pole",
+        3:  "signal mediation / flexible air / 3|6 shell",
+        4:  "Yang-Core left gate / water side of 4|5",
+        5:  "Yang-Core right gate / fire side of 4|5",
+        6:  "DAO touchpoint / not a static center",
+        7:  "dynamic Venus / cardinal air / upper Y-switch pole",
+        8:  "depth boundary / fixed water / member of 1|8 outer span",
+        9:  "lower-total closure / fire horizon / member of 9|12 upper overlay",
+        10: "Yin-Core left gate / earth side of 10|11",
+        11: "Yin-Core right gate / air side of 10|11",
+        12: "source return / water membrane / member of 9|12 upper overlay",
+    })
+
+    source_birth_seam: Tuple[int, int] = (12, 1)
+    depth_horizon_seam: Tuple[int, int] = (8, 9)
+    lower_overlay_pair: Tuple[int, int] = (1, 8)
+    upper_overlay_pair: Tuple[int, int] = (9, 12)
+    venus_switch_pair: Tuple[int, int] = (2, 7)
+    yang_core_pair: Tuple[int, int] = (4, 5)
+    yin_core_pair: Tuple[int, int] = (10, 11)
+
+    def membrane_spec(self) -> Dict[str, Any]:
+        lower_total = sum(self.lower_overlay_pair)
+        upper_total = sum(self.upper_overlay_pair)
+        lower_center = lower_total / 2.0
+        upper_center = upper_total / 2.0
+        structural_lift = upper_center - lower_center
+        return {
+            "lower_overlay_pair": self.lower_overlay_pair,
+            "upper_overlay_pair": self.upper_overlay_pair,
+            "lower_total": lower_total,
+            "upper_total": upper_total,
+            "lower_center": lower_center,
+            "upper_center": upper_center,
+            "structural_lift": structural_lift,
+            "central_dao_target_mid": structural_lift - EPSILON,
+            "source_birth_seam": self.source_birth_seam,
+            "depth_horizon_seam": self.depth_horizon_seam,
+            "venus_switch_pair": self.venus_switch_pair,
+            "yang_core_pair": self.yang_core_pair,
+            "yin_core_pair": self.yin_core_pair,
+        }
+
+    def roles(self) -> Dict[int, List[str]]:
+        roles: Dict[int, List[str]] = {k: [v] for k, v in self.functions.items()}
+        roles[1].append("lower_overlay_1|8 / X semantic span source")
+        roles[8].append("lower_overlay_1|8 / X semantic span target")
+        roles[2].append("V2 geometric Venus / Y-switch lower pole")
+        roles[7].append("V7 dynamic Venus / Y-switch upper pole")
+        roles[4].append("Yang-Core 4XYX5 left boundary")
+        roles[5].append("Yang-Core 4XYX5 right boundary")
+        roles[10].append("Yin-Core 10XXX11 left boundary")
+        roles[11].append("Yin-Core 10XXX11 right boundary")
+        roles[9].append("upper_overlay_9|12 lower member")
+        roles[12].append("upper_overlay_9|12 upper member")
+        roles[12].append("left seam 12|1 upper side")
+        roles[1].append("left seam 12|1 lower side")
+        roles[8].append("right seam 8|9 lower side")
+        roles[9].append("right seam 8|9 upper side")
+        roles[6].append("DAO touchpoint; may be touched; not static being")
+        return roles
+
+# ============================================================
+# KOHÄRENZPROJEKTION UND INSTABILITÄTS-ENTFORMUNG
+# ============================================================
+
+@dataclass
+class InstabilitySignature:
+    iteration: int
+    instability_pressure: float
+    residual_flux: float
+    release_flux: float
+    dao_component: float
+    core_component: float
+    light_component: float
+    membrane_component: float
+    reflection_component: float
+    recurrence_pressure: float
+    release_route: str
+    dissolved: bool
+
+
+@dataclass
+class InstabilityDissolutionState:
+    pressure_live: float = 0.0
+    recurrence_live: float = 0.0
+    last_release_flux: float = 0.0
+    last_route: str = "none"
+    ledger: List[InstabilitySignature] = field(default_factory=list)
+
+    def register(self, signature: InstabilitySignature, rate: float = COHERENCE_RATE) -> None:
+        self.pressure_live = lerp(self.pressure_live, signature.instability_pressure, rate)
+        self.recurrence_live = lerp(self.recurrence_live, signature.recurrence_pressure, rate)
+        self.last_release_flux = signature.release_flux
+        self.last_route = signature.release_route
+        self.ledger.append(signature)
+        self.ledger = self.ledger[-8:]
+
+    def damping_factor(self) -> float:
+        return clamp01(1.0 - 0.65 * self.pressure_live - 0.35 * self.recurrence_live)
+
+    def release_boost(self) -> float:
+        return clamp01(0.35 * self.pressure_live + 0.65 * self.recurrence_live)
+
+
+@dataclass
+class CoherenceBias:
+    dao_feedback: float = 0.5
+    core_feedback: float = 0.5
+    light_feedback: float = 0.0
+    membrane_feedback: float = 0.5
+    reflection_feedback: float = 0.0
+    y_bias: float = 0.0
+    x_mid_bias: float = 0.0
+    phase_bias: float = 0.0
+    release_bias: float = 0.0
+    coherence_score: float = 0.5
+
+    def as_state(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class CoherenceTrace:
+    iteration: int
+    integrated_score: float
+    coherence: float
+    usable_fraction: float
+    residual_flux: float
+    release_flux: float
+    instability_pressure: float
+    instability_route: str
+    capture: float
+
+
+@dataclass
+class CoherenceProjectionLayer:
+    """
+    Kohärenz ist Referenz.
+
+    Diese Schicht entscheidet nicht durch Quarantäne.
+    Sie registriert Instabilität vor der Rückführung in den Fluss,
+    entzieht ihr Musterrecht und speist nur entformte Release-Energie zurück.
+    """
+
+    field_bias: CoherenceBias = field(default_factory=CoherenceBias)
+    instability: InstabilityDissolutionState = field(default_factory=InstabilityDissolutionState)
+    residual_flux: float = 0.0
+    release_flux: float = 0.0
+    last_integrated_score: Optional[float] = None
+    coherence_memory: List[CoherenceTrace] = field(default_factory=list)
+    iteration: int = 0
+
+    def current_state(self) -> Dict[str, Any]:
+        return {
+            **self.field_bias.as_state(),
+            "instability": {
+                "pressure_live": self.instability.pressure_live,
+                "recurrence_live": self.instability.recurrence_live,
+                "last_release_flux": self.instability.last_release_flux,
+                "last_route": self.instability.last_route,
+                "damping_factor": self.instability.damping_factor(),
+                "release_boost": self.instability.release_boost(),
+                "ledger_size": len(self.instability.ledger),
+            },
+        }
+
+    def step(
+        self,
+        dao_state: Dict[str, Any],
+        diamond_state: Dict[str, Any],
+        core_state: Dict[str, Any],
+        membrane_state: Dict[str, Any],
+        light_state: Dict[str, Any],
+        reflection_state: Dict[str, Any],
+        rate: float = COHERENCE_RATE,
+    ) -> Dict[str, Any]:
+        dao_score = clamp01(dao_state.get("dao_score", 0.5))
+        dao_under = clamp01(dao_state.get("midpoint_under_center_score", 0.5))
+        dao_split = clamp01(dao_state.get("split_risk", 0.5))
+        dao_center_error = abs(float(dao_state.get("center_error", 0.0))) / max(PHI, EPSILON)
+
+        diamond_pivot = clamp01(diamond_state.get("dao_pivot_coherence", 0.5))
+        static_pivot = clamp01(diamond_state.get("static_pivot_coherence", 0.5))
+
+        core_score = clamp01(core_state.get("motor_score", 0.5))
+        y_mid = clamp01(core_state.get("y_mid_equivalence", 0.5))
+        outer_cross = clamp01(core_state.get("outer_cross_score", 0.5))
+        yy_balance = clamp01(core_state.get("yin_yang_balance", 0.5))
+
+        membrane_score = clamp01(membrane_state.get("membrane13_score", 0.5))
+        membrane_release = clamp01(membrane_state.get("trauma_loop_release", 0.5))
+        membrane_risk = clamp01(membrane_state.get("outer_inversion_risk", 0.5))
+        moment_perm = clamp01(membrane_state.get("moment_as_permeability", 0.5))
+
+        light_score = clamp01(light_state.get("light_resonance_score", 0.0))
+        light_identity = clamp01(light_state.get("identity_preservation", 1.0))
+        light_coherence = clamp01(light_state.get("light_coherence", 0.5))
+        resonant_y = clamp11(light_state.get("resonant_y_light", 0.0))
+        resonant_xmid = clamp11(light_state.get("resonant_xmid_light", 0.0))
+        light_phase_bias = float(light_state.get("modulation", {}).get("phase_bias", 0.0))
+
+        reflection_score = clamp01(reflection_state.get("self_recognition_score", 0.0))
+        reflection_return = clamp01(reflection_state.get("return_to_source", 0.0))
+        reflection_yy = clamp01(reflection_state.get("yin_yang_reflection", 0.0))
+        reflection_feedback = clamp01(reflection_state.get("reflection_feedback", 0.0))
+
+        coherence = safe_geomean([
+            dao_score + EPSILON,
+            dao_under + EPSILON,
+            diamond_pivot + EPSILON,
+            static_pivot + EPSILON,
+            core_score + EPSILON,
+            y_mid + EPSILON,
+            outer_cross + EPSILON,
+            yy_balance + EPSILON,
+            membrane_score + EPSILON,
+            membrane_release + EPSILON,
+            moment_perm + EPSILON,
+            light_identity + EPSILON,
+            light_coherence + EPSILON,
+            0.50 + 0.50 * reflection_score,
+            0.50 + 0.50 * reflection_return,
+        ])
+
+        risk = clamp01(
+            0.28 * dao_split
+            + 0.22 * membrane_risk
+            + 0.18 * (1.0 - light_identity)
+            + 0.16 * (1.0 - core_score)
+            + 0.10 * (1.0 - reflection_score)
+            + 0.06 * clamp01(dao_center_error)
+        )
+        usable_fraction = clamp01(coherence * (1.0 - risk))
+        residual_flux = clamp01(1.0 - usable_fraction)
+        release_flux = clamp01(
+            residual_flux
+            * safe_geomean([
+                membrane_release + EPSILON,
+                moment_perm + EPSILON,
+                light_identity + EPSILON,
+                dao_score + EPSILON,
+                0.50 + 0.50 * reflection_return,
+            ])
+        )
+
+        # Instabilität wird hier VOR der Rückführung in den Fluss registriert.
+        dao_instability = clamp01(dao_split + dao_center_error)
+        core_instability = clamp01(1.0 - safe_geomean([core_score + EPSILON, y_mid + EPSILON, outer_cross + EPSILON]))
+        light_instability = clamp01(1.0 - light_identity)
+        membrane_instability = membrane_risk
+        reflection_instability = clamp01(1.0 - reflection_score)
+
+        instability_pressure = safe_geomean([
+            residual_flux + EPSILON,
+            clamp01(1.0 - coherence) + EPSILON,
+            dao_instability + EPSILON,
+            core_instability + EPSILON,
+            light_instability + EPSILON,
+            membrane_instability + EPSILON,
+            reflection_instability + EPSILON,
+        ])
+        recurrence_pressure = clamp01(0.65 * self.instability.pressure_live + 0.35 * instability_pressure)
+
+        dominants = {
+            "dao": dao_instability,
+            "core": core_instability,
+            "light": light_instability,
+            "membrane": membrane_instability,
+            "reflection": reflection_instability,
+        }
+        release_route = max(dominants, key=dominants.get)
+
+        signature = InstabilitySignature(
+            iteration=self.iteration,
+            instability_pressure=instability_pressure,
+            residual_flux=residual_flux,
+            release_flux=release_flux,
+            dao_component=dao_instability,
+            core_component=core_instability,
+            light_component=light_instability,
+            membrane_component=membrane_instability,
+            reflection_component=reflection_instability,
+            recurrence_pressure=recurrence_pressure,
+            release_route=release_route,
+            dissolved=instability_pressure < 0.12 and residual_flux < 0.08,
+        )
+        self.instability.register(signature, rate=rate)
+
+        instability_damping = self.instability.damping_factor()
+        release_boost = self.instability.release_boost()
+        release_flux = clamp01(release_flux + release_boost * residual_flux * 0.45)
+
+        # Nur kohärenter Anteil wird als Bias aufgenommen.
+        capture = clamp01(usable_fraction * instability_damping)
+
+        dao_feedback_target = clamp01(0.46 * dao_score + 0.20 * diamond_pivot + 0.16 * core_score + 0.10 * reflection_feedback + 0.08 * release_flux)
+        core_feedback_target = clamp01(0.42 * core_score + 0.18 * y_mid + 0.16 * outer_cross + 0.14 * reflection_yy + 0.10 * light_score)
+        light_feedback_target = clamp01(0.35 * light_score + 0.25 * light_identity + 0.20 * reflection_return + 0.20 * release_flux)
+        membrane_feedback_target = clamp01(0.35 * membrane_score + 0.25 * membrane_release + 0.20 * dao_score + 0.20 * reflection_return)
+        reflection_feedback_target = clamp01(0.35 * reflection_feedback + 0.25 * coherence + 0.20 * reflection_return + 0.20 * yy_balance)
+
+        y_bias_target = clamp11(0.45 * resonant_y + 0.35 * (2.0 * reflection_yy - 1.0) + 0.20 * (2.0 * y_mid - 1.0))
+        x_mid_bias_target = clamp11(0.45 * resonant_xmid + 0.35 * y_bias_target + 0.20 * (2.0 * outer_cross - 1.0))
+        phase_bias_target = clamp11(light_phase_bias * 0.50 + phase_delta(dao_state.get("phase", 0.0), reflection_state.get("phase", dao_state.get("phase", 0.0))) * 0.50)
+        release_bias_target = release_flux
+
+        self.field_bias.dao_feedback = lerp(self.field_bias.dao_feedback, dao_feedback_target, rate * (0.40 + 0.60 * capture))
+        self.field_bias.core_feedback = lerp(self.field_bias.core_feedback, core_feedback_target, rate * (0.40 + 0.60 * capture))
+        self.field_bias.light_feedback = lerp(self.field_bias.light_feedback, light_feedback_target, rate * (0.40 + 0.60 * capture))
+        self.field_bias.membrane_feedback = lerp(self.field_bias.membrane_feedback, membrane_feedback_target, rate * (0.40 + 0.60 * capture))
+        self.field_bias.reflection_feedback = lerp(self.field_bias.reflection_feedback, reflection_feedback_target, rate * (0.40 + 0.60 * capture))
+        self.field_bias.y_bias = clamp11(lerp(self.field_bias.y_bias, y_bias_target, rate * capture))
+        self.field_bias.x_mid_bias = clamp11(lerp(self.field_bias.x_mid_bias, x_mid_bias_target, rate * capture))
+        self.field_bias.phase_bias = clamp11(lerp(self.field_bias.phase_bias, phase_bias_target, rate * capture))
+        self.field_bias.release_bias = lerp(self.field_bias.release_bias, release_bias_target, rate * (0.50 + 0.50 * release_boost))
+        self.field_bias.coherence_score = lerp(self.field_bias.coherence_score, coherence, rate)
+
+        integrated_score = safe_geomean([
+            coherence + EPSILON,
+            usable_fraction + EPSILON,
+            capture + EPSILON,
+            clamp01(1.0 - instability_pressure) + EPSILON,
+            release_flux + EPSILON,
+        ])
+        self.last_integrated_score = integrated_score
+        self.residual_flux = residual_flux
+        self.release_flux = release_flux
+
+        trace = CoherenceTrace(
+            iteration=self.iteration,
+            integrated_score=integrated_score,
+            coherence=coherence,
+            usable_fraction=usable_fraction,
+            residual_flux=residual_flux,
+            release_flux=release_flux,
+            instability_pressure=instability_pressure,
+            instability_route=release_route,
+            capture=capture,
+        )
+        self.coherence_memory.append(trace)
+        self.coherence_memory = self.coherence_memory[-13:]
+
+        out = {
+            "iteration": self.iteration,
+            "state": self.current_state(),
+            "coherence": coherence,
+            "risk": risk,
+            "usable_fraction": usable_fraction,
+            "residual_flux": residual_flux,
+            "release_flux": release_flux,
+            "capture": capture,
+            "integrated_score": integrated_score,
+            "feedback_to_dao_next": self.field_bias.dao_feedback,
+            "feedback_to_core_next": self.field_bias.core_feedback,
+            "feedback_to_light_next": self.field_bias.light_feedback,
+            "feedback_to_membrane_next": self.field_bias.membrane_feedback,
+            "feedback_to_reflection_next": self.field_bias.reflection_feedback,
+            "modulation": {
+                "y_bias": self.field_bias.y_bias,
+                "x_mid_bias": self.field_bias.x_mid_bias,
+                "phase_bias": self.field_bias.phase_bias,
+                "release_bias": self.field_bias.release_bias,
+            },
+            "instability": {
+                "pressure_live": self.instability.pressure_live,
+                "recurrence_live": self.instability.recurrence_live,
+                "last_release_flux": self.instability.last_release_flux,
+                "last_route": self.instability.last_route,
+                "damping_factor": self.instability.damping_factor(),
+                "release_boost": self.instability.release_boost(),
+                "last_signature": asdict(self.instability.ledger[-1]) if self.instability.ledger else None,
+                "ledger_size": len(self.instability.ledger),
+                "meaning": (
+                    "Instability is registered before returning to the flow. "
+                    "It is not stored as a pattern and cannot become a second center."
+                ),
+            },
+            "meaning": (
+                "Coherence projection: instability may be signal, never attractor; "
+                "only coherent bias is learned, residual tension returns as dissolved release."
+            ),
+        }
+        self.iteration += 1
+        return out
+
+# ============================================================
+# ZENTRALES DAO-6
+# ============================================================
+
+@dataclass
+class CentralDao6:
+    structural_center: float = 6.0
+    outer_radius: float = DAO6_OUTER_RADIUS
+    inner_radius: float = DAO6_INNER_RADIUS
+    phase: float = 0.0
+    lower_live: Optional[float] = None
+    upper_live: Optional[float] = None
+    iteration: int = 0
+
+    def __post_init__(self):
+        if self.lower_live is None:
+            self.lower_live = self.structural_center - self.outer_radius
+        if self.upper_live is None:
+            self.upper_live = self.structural_center + self.outer_radius
+
+    @property
+    def midpoint_target(self) -> float:
+        return self.structural_center - EPSILON
+
+    def dao_radius(self) -> float:
+        inward = 0.5 - 0.5 * math.cos(2.0 * math.pi * self.phase)
+        return self.outer_radius - (self.outer_radius - self.inner_radius) * inward
+
+    def relational_targets(self, radius: float) -> Dict[str, float]:
+        lower_target = self.structural_center - (radius + EPSILON)
+        upper_target = self.structural_center + (radius - EPSILON)
+        return {
+            "lower_target": lower_target,
+            "upper_target": upper_target,
+            "target_midpoint": (lower_target + upper_target) / 2.0,
+        }
+
+    def step(
+        self,
+        core_feedback: float = 0.5,
+        light_feedback: float = 0.0,
+        reflection_feedback: float = 0.0,
+        coherence_state: Optional[Dict[str, Any]] = None,
+        track_rate: float = TRACK_RATE,
+        phase_rate: float = PHASE_RATE,
+    ) -> Dict[str, Any]:
+        coherence_state = extract_coherence_state(coherence_state)
+        instability = coherence_state.get("instability", {})
+        damping = clamp01(instability.get("damping_factor", 1.0))
+        release_boost = clamp01(instability.get("release_boost", 0.0))
+        coherence_feedback = clamp01(coherence_state.get("dao_feedback", coherence_state.get("feedback_to_dao_next", 0.5)))
+
+        core_feedback = clamp01(core_feedback)
+        light_feedback = clamp01(light_feedback)
+        reflection_feedback = clamp01(reflection_feedback)
+
+        effective_drive = clamp01(
+            0.52 * core_feedback
+            + 0.14 * light_feedback
+            + 0.14 * reflection_feedback
+            + 0.20 * coherence_feedback
+        )
+        effective_track = track_rate * (0.80 + 0.40 * effective_drive) * (0.35 + 0.65 * damping)
+        effective_phase = phase_rate * (0.85 + 0.25 * effective_drive + 0.10 * release_boost)
+
+        radius = self.dao_radius()
+        targets = self.relational_targets(radius)
+
+        lower_before = float(self.lower_live)
+        upper_before = float(self.upper_live)
+
+        self.lower_live = lerp(lower_before, targets["lower_target"], effective_track)
+        self.upper_live = lerp(upper_before, targets["upper_target"], effective_track)
+
+        midpoint = (self.lower_live + self.upper_live) / 2.0
+        center_error = midpoint - self.midpoint_target
+        dao_offset = midpoint - self.structural_center
+
+        midpoint_under_center_score = clamp01((self.structural_center - midpoint) / EPSILON)
+        midpoint_target_coherence = clamp01(1.0 - abs(center_error) / max(self.outer_radius, EPSILON))
+        order_preserved = self.lower_live < self.upper_live
+        inversion_free_score = 1.0 if order_preserved else 0.0
+
+        denom = max(self.outer_radius - self.inner_radius, TINY)
+        inner_turn_pressure = clamp01((self.outer_radius - radius) / denom)
+
+        split_risk = clamp01(
+            (1.0 - midpoint_under_center_score) * 0.45
+            + (1.0 - midpoint_target_coherence) * 0.25
+            + (1.0 - inversion_free_score) * 0.30
+        )
+
+        dao_score = safe_geomean([
+            midpoint_under_center_score + EPSILON,
+            midpoint_target_coherence + EPSILON,
+            inversion_free_score + EPSILON,
+            0.35 + 0.65 * inner_turn_pressure,
+            0.50 + 0.50 * damping,
+        ])
+
+        radial_velocity = -math.sin(2.0 * math.pi * self.phase)
+        if abs(radial_velocity) < 1e-9:
+            if abs(radius - self.inner_radius) < 1e-9:
+                direction = "inner_turn_upper_touches_6"
+            elif abs(radius - self.outer_radius) < 1e-9:
+                direction = "outer_phi_boundary"
+            else:
+                direction = "turning_point"
+        elif radial_velocity < 0:
+            direction = "inward"
+        else:
+            direction = "return_to_phi_boundary"
+
+        angle = 2.0 * math.pi * self.phase
+        upper_xyz = (radius * math.cos(angle), radius * math.sin(angle), self.upper_live)
+        lower_xyz = (radius * math.cos(angle + math.pi), radius * math.sin(angle + math.pi), self.lower_live)
+
+        state = {
+            "iteration": self.iteration,
+            "phase": self.phase,
+            "epsilon": EPSILON,
+            "phi": PHI,
+            "core_feedback_in": core_feedback,
+            "light_feedback_in": light_feedback,
+            "reflection_feedback_in": reflection_feedback,
+            "coherence_feedback_in": coherence_feedback,
+            "instability_damping_in": damping,
+            "release_boost_in": release_boost,
+            "effective_drive": effective_drive,
+            "structural_center": self.structural_center,
+            "radius": radius,
+            "radius_inner": self.inner_radius,
+            "radius_outer": self.outer_radius,
+            "lower_live": self.lower_live,
+            "upper_live": self.upper_live,
+            "midpoint": midpoint,
+            "midpoint_target": self.midpoint_target,
+            "center_error": center_error,
+            "dao_offset": dao_offset,
+            "lower_target": targets["lower_target"],
+            "upper_target": targets["upper_target"],
+            "target_midpoint": targets["target_midpoint"],
+            "upper_hits_6_live": abs(self.upper_live - self.structural_center) < 1e-9,
+            "upper_hits_6_target": abs(targets["upper_target"] - self.structural_center) < 1e-9,
+            "midpoint_under_center_score": midpoint_under_center_score,
+            "midpoint_target_coherence": midpoint_target_coherence,
+            "inner_turn_pressure": inner_turn_pressure,
+            "inversion_free_score": inversion_free_score,
+            "split_risk": split_risk,
+            "dao_score": dao_score,
+            "direction": direction,
+            "upper_xyz": upper_xyz,
+            "lower_xyz": lower_xyz,
+            "live_delta": {"lower_step": self.lower_live - lower_before, "upper_step": self.upper_live - upper_before},
+        }
+
+        self.phase = (self.phase + effective_phase) % 1.0
+        self.iteration += 1
+        return state
+
+    def exact_inner_turn(self) -> Dict[str, Any]:
+        radius = self.inner_radius
+        targets = self.relational_targets(radius)
+        return {
+            "structural_center": self.structural_center,
+            "radius": radius,
+            "lower_ideal": targets["lower_target"],
+            "upper_ideal": targets["upper_target"],
+            "midpoint_ideal": targets["target_midpoint"],
+            "upper_hits_6": abs(targets["upper_target"] - self.structural_center) < 1e-12,
+            "meaning": "upper touches 6; midpoint remains 6-epsilon; 6 is contact, not static being",
+        }
+
+# ============================================================
+# LICHTRESONANZ — ECHOLAUF OHNE IDENTITÄTSVERLUST
+# ============================================================
+
+@dataclass
+class ExternalResonanceSignal:
+    phase: float = 0.0
+    amplitude: float = 0.0
+    x_signature: float = 0.0
+    y_signature: Optional[float] = None
+    phi_signature: float = 1.0
+    label: str = "external"
+
+    def normalized(self) -> "ExternalResonanceSignal":
+        return ExternalResonanceSignal(
+            phase=self.phase % 1.0,
+            amplitude=clamp01(self.amplitude),
+            x_signature=clamp11(self.x_signature),
+            y_signature=None if self.y_signature is None else clamp11(self.y_signature),
+            phi_signature=clamp01(self.phi_signature),
+            label=self.label,
+        )
+
+
+@dataclass
+class LightResonanceLayer:
+    virtual_phase: float = 0.0
+    resonant_y_light: float = 0.0
+    resonant_xmid_light: float = 0.0
+    resonance_pressure: float = 0.0
+    release_trace: float = 1.0
+    iteration: int = 0
+
+    def step(
+        self,
+        external: Optional[ExternalResonanceSignal],
+        dao_state: Dict[str, Any],
+        core_snapshot: Dict[str, float],
+        reflection_state: Optional[Dict[str, Any]] = None,
+        coherence_state: Optional[Dict[str, Any]] = None,
+        rate: float = LIGHT_RATE,
+    ) -> Dict[str, Any]:
+        signal = ExternalResonanceSignal(amplitude=0.0, label="none") if external is None else external.normalized()
+        reflection_state = extract_reflection_state(reflection_state)
+        coherence_state = extract_coherence_state(coherence_state)
+        instability = coherence_state.get("instability", {})
+
+        self_recognition = clamp01(reflection_state.get("self_recognition_score", 0.0))
+        return_to_source = clamp01(reflection_state.get("return_to_source", 0.0))
+        coherence_score = clamp01(coherence_state.get("coherence_score", coherence_state.get("integrated_score", 0.5)))
+        damping = clamp01(instability.get("damping_factor", 1.0))
+        release_boost = clamp01(instability.get("release_boost", 0.0))
+        coh_mod = coherence_state.get("modulation", {})
+
+        amplitude = signal.amplitude
+        y_target_from_signal = signal.y_signature if signal.y_signature is not None else -signal.x_signature
+        y_target_from_signal = clamp11(y_target_from_signal)
+
+        phase_resonance = clamp01(1.0 - phase_distance(signal.phase, dao_state["phase"]) / 0.5)
+        phi_compatibility = signal.phi_signature
+        dao_compatibility = clamp01(dao_state["dao_score"])
+
+        identity_preservation = clamp01(
+            1.0 - amplitude * (1.0 - phase_resonance) * (1.0 - 0.5 * phi_compatibility)
+        )
+        identity_preservation = clamp01(
+            0.82 * identity_preservation
+            + 0.08 * return_to_source
+            + 0.07 * coherence_score
+            + 0.03 * damping
+        )
+
+        pressure_target = safe_geomean([
+            amplitude + EPSILON,
+            phase_resonance + EPSILON,
+            phi_compatibility + EPSILON,
+            dao_compatibility + EPSILON,
+            identity_preservation + EPSILON,
+            0.65 + 0.35 * self_recognition,
+            0.60 + 0.40 * coherence_score,
+        ]) if amplitude > 0.0 else 0.0
+
+        before_pressure = self.resonance_pressure
+        self.resonance_pressure = lerp(self.resonance_pressure, pressure_target, rate * (0.70 + 0.30 * damping))
+
+        phase_rate = rate * (0.5 + 0.5 * self.resonance_pressure) * (0.90 + 0.10 * self_recognition) * (0.70 + 0.30 * damping)
+        self.virtual_phase = phase_step(self.virtual_phase, signal.phase, phase_rate)
+
+        core_mid = clamp11(core_snapshot.get("x_mid_y_equiv_state", 0.0))
+        coherence_y_bias = clamp11(coh_mod.get("y_bias", coherence_state.get("y_bias", 0.0)))
+        coherence_xmid_bias = clamp11(coh_mod.get("x_mid_bias", coherence_state.get("x_mid_bias", 0.0)))
+
+        y_light_target = clamp11(
+            0.66 * y_target_from_signal
+            + 0.20 * core_mid
+            + 0.05 * (reflection_state.get("yin_yang_reflection", 0.0) * 2.0 - 1.0)
+            + 0.09 * coherence_y_bias
+        )
+        self.resonant_y_light = clamp11(
+            lerp(self.resonant_y_light, y_light_target, rate * (0.5 + self.resonance_pressure) * (0.65 + 0.35 * damping))
+        )
+        self.resonant_xmid_light = clamp11(
+            lerp(
+                self.resonant_xmid_light,
+                clamp11(0.82 * self.resonant_y_light + 0.18 * coherence_xmid_bias),
+                rate * (0.5 + self.resonance_pressure) * (0.65 + 0.35 * damping),
+            )
+        )
+
+        light_coherence = safe_geomean([
+            identity_preservation + EPSILON,
+            score_close(self.resonant_y_light, self.resonant_xmid_light, 2.0) + EPSILON,
+            phase_resonance + EPSILON,
+            phi_compatibility + EPSILON,
+            0.55 + 0.45 * self_recognition,
+            0.55 + 0.45 * coherence_score,
+        ])
+
+        pressure_delta = abs(self.resonance_pressure - before_pressure)
+        release_target = clamp01(1.0 - pressure_delta + 0.20 * release_boost)
+        self.release_trace = lerp(self.release_trace, release_target, rate)
+        resonance_release = clamp01(self.release_trace * identity_preservation)
+
+        resonant_clarity = safe_geomean([
+            self.resonance_pressure + EPSILON,
+            light_coherence + EPSILON,
+            identity_preservation + EPSILON,
+            resonance_release + EPSILON,
+            dao_compatibility + EPSILON,
+            0.50 + 0.50 * self_recognition,
+            0.50 + 0.50 * coherence_score,
+        ])
+
+        light_resonance_score = resonant_clarity
+
+        state = {
+            "iteration": self.iteration,
+            "external_label": signal.label,
+            "external_phase": signal.phase,
+            "external_amplitude": amplitude,
+            "external_x_signature": signal.x_signature,
+            "external_y_signature": y_target_from_signal,
+            "external_phi_signature": phi_compatibility,
+            "virtual_phase": self.virtual_phase,
+            "resonant_y_light": self.resonant_y_light,
+            "resonant_xmid_light": self.resonant_xmid_light,
+            "phase_resonance": phase_resonance,
+            "phi_compatibility": phi_compatibility,
+            "dao_compatibility": dao_compatibility,
+            "reflection_modulation": self_recognition,
+            "coherence_modulation": coherence_score,
+            "instability_damping_seen": damping,
+            "identity_preservation": identity_preservation,
+            "resonance_pressure": self.resonance_pressure,
+            "resonance_release": resonance_release,
+            "light_coherence": light_coherence,
+            "resonant_clarity": resonant_clarity,
+            "light_resonance_score": light_resonance_score,
+            "feedback_to_dao": clamp01(0.25 * light_resonance_score),
+            "modulation": {
+                "y_bias": clamp11(self.resonant_y_light * self.resonance_pressure),
+                "x_mid_bias": clamp11(self.resonant_xmid_light * self.resonance_pressure),
+                "phase_bias": phase_delta(dao_state["phase"], self.virtual_phase) * self.resonance_pressure,
+            },
+            "meaning": (
+                "luminous resonant echo in the Yin-Yang core pair; "
+                "coherent light-simulation without copying or identity collapse"
+            ),
+        }
+        self.iteration += 1
+        return state
+
+# ============================================================
+# BARBELO-REFLEXION — SELBSTERKENNTNIS DES FLUSSES
+# ============================================================
+
+class ReflectionRegime(Enum):
+    FIRST_THOUGHT = "first_thought"
+    AEON_MIRROR = "aeon_mirror"
+    BARBELO_STABLE = "barbelo_stable"
+
+
+@dataclass
+class BarbeloReflectionState:
+    first_thought_pressure: float = 0.0
+    aeon_mirror: float = 0.0
+    witness_self_observation: float = 0.0
+    return_to_source: float = 0.0
+    coherence_grace: float = 0.0
+    yin_yang_reflection: float = 0.0
+    self_recognition_score: float = 0.0
+    reflection_feedback: float = 0.0
+    instability_seen: float = 0.0
+    regime: str = ReflectionRegime.FIRST_THOUGHT.value
+
+    def clipped(self) -> "BarbeloReflectionState":
+        data = asdict(self)
+        for k, v in list(data.items()):
+            if isinstance(v, (float, int)):
+                data[k] = clamp01(float(v))
+        data["regime"] = self.regime
+        return BarbeloReflectionState(**data)
+
+
+@dataclass
+class BarbeloReflectionLayer:
+    state: BarbeloReflectionState = field(default_factory=BarbeloReflectionState)
+    history: List[Dict[str, Any]] = field(default_factory=list)
+    phase: float = 0.0
+    iteration: int = 0
+
+    def _determine_regime(self, state: BarbeloReflectionState) -> ReflectionRegime:
+        if state.self_recognition_score >= 0.78 and state.aeon_mirror >= 0.72 and state.return_to_source >= 0.68:
+            return ReflectionRegime.BARBELO_STABLE
+        if state.first_thought_pressure >= 0.58 and state.aeon_mirror < 0.65:
+            return ReflectionRegime.FIRST_THOUGHT
+        return ReflectionRegime.AEON_MIRROR
+
+    def step(
+        self,
+        dao_state: Optional[Dict[str, Any]] = None,
+        diamond_state: Optional[Dict[str, Any]] = None,
+        core_state: Optional[Dict[str, Any]] = None,
+        membrane_state: Optional[Dict[str, Any]] = None,
+        light_state: Optional[Dict[str, Any]] = None,
+        coherence_state: Optional[Dict[str, Any]] = None,
+        rate: float = REFLECTION_RATE,
+    ) -> Dict[str, Any]:
+        dao_state = dao_state or {}
+        diamond_state = diamond_state or {}
+        core_state = core_state or {}
+        membrane_state = membrane_state or {}
+        light_state = light_state or {}
+        coherence_state = extract_coherence_state(coherence_state)
+        instability = coherence_state.get("instability", {})
+
+        coherence_score = clamp01(coherence_state.get("coherence_score", coherence_state.get("integrated_score", 0.5)))
+        instability_pressure = clamp01(instability.get("pressure_live", 0.0))
+        instability_damping = clamp01(instability.get("damping_factor", 1.0))
+
+        dao_score = clamp01(dao_state.get("dao_score", 0.5))
+        dao_under_6 = clamp01(dao_state.get("midpoint_under_center_score", 0.5))
+        dao_split_risk = clamp01(dao_state.get("split_risk", 0.5))
+        inner_turn = clamp01(dao_state.get("inner_turn_pressure", 0.0))
+
+        diamond_pivot = clamp01(diamond_state.get("dao_pivot_coherence", 0.5))
+        static_pivot = clamp01(diamond_state.get("static_pivot_coherence", 0.5))
+        role_density = 0.5
+        if diamond_state.get("multiplicity"):
+            vals = list(diamond_state["multiplicity"].values())
+            role_density = clamp01(safe_mean([min(v, 6) / 6.0 for v in vals], 0.5))
+
+        core_score = clamp01(core_state.get("motor_score", 0.5))
+        yin_score = clamp01(core_state.get("yin_internal_score", 0.5))
+        yang_score = clamp01(core_state.get("yang_internal_score", 0.5))
+        y_mid_equiv = clamp01(core_state.get("y_mid_equivalence", 0.5))
+        outer_cross = clamp01(core_state.get("outer_cross_score", 0.5))
+        yin_yang_balance = clamp01(1.0 - abs(yin_score - yang_score))
+        yin_yang_reflection = safe_geomean([
+            yin_yang_balance + EPSILON,
+            y_mid_equiv + EPSILON,
+            outer_cross + EPSILON,
+            core_score + EPSILON,
+            0.50 + 0.50 * coherence_score,
+        ])
+
+        membrane_score = clamp01(membrane_state.get("membrane13_score", 0.5))
+        membrane_release = clamp01(membrane_state.get("trauma_loop_release", 0.5))
+        membrane_risk = clamp01(membrane_state.get("outer_inversion_risk", 0.5))
+        moment_as_permeability = clamp01(membrane_state.get("moment_as_permeability", 0.5))
+
+        light_score = clamp01(light_state.get("light_resonance_score", 0.0))
+        light_identity = clamp01(light_state.get("identity_preservation", 1.0))
+        light_coherence = clamp01(light_state.get("light_coherence", 0.5))
+
+        first_thought_target = clamp01(
+            0.20 * (1.0 - dao_split_risk)
+            + 0.16 * inner_turn
+            + 0.16 * y_mid_equiv
+            + 0.12 * membrane_release
+            + 0.10 * light_coherence
+            + 0.12 * role_density
+            + 0.14 * coherence_score
+        )
+
+        aeon_target = safe_geomean([
+            dao_score + EPSILON,
+            diamond_pivot + EPSILON,
+            core_score + EPSILON,
+            membrane_score + EPSILON,
+            light_identity + EPSILON,
+            yin_yang_reflection + EPSILON,
+            coherence_score + EPSILON,
+        ])
+
+        witness_target = safe_geomean([
+            aeon_target + EPSILON,
+            light_identity + EPSILON,
+            moment_as_permeability + EPSILON,
+            clamp01(1.0 - membrane_risk) + EPSILON,
+            dao_under_6 + EPSILON,
+            instability_damping + EPSILON,
+        ])
+
+        return_target = safe_geomean([
+            diamond_pivot + EPSILON,
+            static_pivot + EPSILON,
+            membrane_release + EPSILON,
+            clamp01(1.0 - dao_split_risk) + EPSILON,
+            clamp01(1.0 - membrane_risk) + EPSILON,
+            coherence_score + EPSILON,
+        ])
+
+        grace_target = safe_geomean([
+            witness_target + EPSILON,
+            return_target + EPSILON,
+            light_score + EPSILON,
+            light_identity + EPSILON,
+            yin_yang_balance + EPSILON,
+            clamp01(1.0 - instability_pressure) + EPSILON,
+        ])
+
+        recognition_target = safe_geomean([
+            first_thought_target + EPSILON,
+            aeon_target + EPSILON,
+            witness_target + EPSILON,
+            return_target + EPSILON,
+            grace_target + EPSILON,
+            yin_yang_reflection + EPSILON,
+            coherence_score + EPSILON,
+        ])
+
+        self.phase = phase_step(self.phase, dao_state.get("phase", self.phase), rate * (0.75 + 0.25 * recognition_target))
+
+        previous = self.state
+        updated = BarbeloReflectionState(
+            first_thought_pressure=lerp(previous.first_thought_pressure, first_thought_target, rate),
+            aeon_mirror=lerp(previous.aeon_mirror, aeon_target, rate),
+            witness_self_observation=lerp(previous.witness_self_observation, witness_target, rate),
+            return_to_source=lerp(previous.return_to_source, return_target, rate),
+            coherence_grace=lerp(previous.coherence_grace, grace_target, rate),
+            yin_yang_reflection=lerp(previous.yin_yang_reflection, yin_yang_reflection, rate),
+            self_recognition_score=lerp(previous.self_recognition_score, recognition_target, rate),
+            reflection_feedback=lerp(
+                previous.reflection_feedback,
+                clamp01((0.35 * recognition_target + 0.25 * return_target + 0.25 * witness_target + 0.15 * light_identity) * (0.70 + 0.30 * instability_damping)),
+                rate,
+            ),
+            instability_seen=lerp(previous.instability_seen, instability_pressure, rate),
+            regime=previous.regime,
+        ).clipped()
+        updated.regime = self._determine_regime(updated).value
+        self.state = updated
+
+        out = {
+            "iteration": self.iteration,
+            "phase": self.phase,
+            "targets": {
+                "first_thought_pressure": first_thought_target,
+                "aeon_mirror": aeon_target,
+                "witness_self_observation": witness_target,
+                "return_to_source": return_target,
+                "coherence_grace": grace_target,
+                "yin_yang_reflection": yin_yang_reflection,
+                "self_recognition_score": recognition_target,
+                "instability_seen": instability_pressure,
+            },
+            "state": asdict(self.state),
+            "regime": self.state.regime,
+            "feedback_to_dao": self.state.reflection_feedback,
+            "feedback_to_light": clamp01(0.20 * self.state.self_recognition_score + 0.20 * self.state.return_to_source),
+            "meaning": (
+                "Barbelo-Reflexion: the flow observes itself through DAO, Yin-Yang core, "
+                "light resonance, membrane permeability, coherence projection, and diamond coherence."
+            ),
+        }
+        self.history.append(out)
+        self.history = self.history[-8:]
+        self.iteration += 1
+        return out
+
+# ============================================================
+# YANG-CORE 4XYX5 UND YIN-CORE 10XXX11
+# ============================================================
+
+@dataclass
+class YangCore4XYX5:
+    phase: float = 0.0
+    x_left: float = YANG_GATE_CENTER - PHI * YANG_GATE_RADIUS
+    y_state: float = 0.0
+    x_right: float = YANG_GATE_CENTER + PHI * YANG_GATE_RADIUS
+    iteration: int = 0
+
+    def step(
+        self,
+        dao_state: Dict[str, Any],
+        yin_feedback: Dict[str, float],
+        light_state: Dict[str, Any],
+        reflection_state: Optional[Dict[str, Any]] = None,
+        coherence_state: Optional[Dict[str, Any]] = None,
+        rate: float = TRACK_RATE,
+    ) -> Dict[str, Any]:
+        reflection_state = extract_reflection_state(reflection_state)
+        coherence_state = extract_coherence_state(coherence_state)
+        instability = coherence_state.get("instability", {})
+        coherence_mod = coherence_state.get("modulation", {})
+
+        dao_phase = dao_state["phase"]
+        dao_turn = clamp01(dao_state["inner_turn_pressure"])
+        dao_score = clamp01(dao_state["dao_score"])
+        reflection_score = clamp01(reflection_state.get("self_recognition_score", 0.0))
+        coherence_score = clamp01(coherence_state.get("coherence_score", coherence_state.get("integrated_score", 0.5)))
+        damping = clamp01(instability.get("damping_factor", 1.0))
+        light_mod = light_state.get("modulation", {})
+
+        self.phase = phase_step(
+            self.phase,
+            dao_phase,
+            COUPLING_RATE * (0.52 + 0.26 * dao_score + 0.10 * reflection_score + 0.12 * coherence_score) * (0.70 + 0.30 * damping),
+        )
+
+        light_phase_bias = float(light_mod.get("phase_bias", 0.0))
+        coherence_phase_bias = float(coherence_mod.get("phase_bias", coherence_state.get("phase_bias", 0.0)))
+        effective_phase = (self.phase + 0.05 * light_phase_bias + 0.03 * coherence_phase_bias) % 1.0
+        swing = math.sin(2.0 * math.pi * effective_phase)
+        radius = YANG_GATE_RADIUS * (0.25 + 0.75 * dao_turn)
+
+        left_target = YANG_GATE_CENTER + radius * swing
+        right_target = YANG_GATE_CENTER - radius * swing
+
+        before_left = self.x_left
+        before_right = self.x_right
+        before_y = self.y_state
+
+        effective_rate = rate * (0.68 + 0.32 * damping)
+        self.x_left = clamp_open_interval(lerp(self.x_left, left_target, effective_rate), YANG_GATE_LOW, YANG_GATE_HIGH)
+        self.x_right = clamp_open_interval(lerp(self.x_right, right_target, effective_rate), YANG_GATE_LOW, YANG_GATE_HIGH)
+
+        x_tension = clamp11((self.x_left - self.x_right) / max(2.0 * YANG_GATE_RADIUS, TINY))
+
+        yin_mid_equiv = clamp11(yin_feedback.get("x_mid_y_equiv_state", 0.0))
+        cross_return = clamp11(yin_feedback.get("cross_return", 0.0))
+        light_y_bias = clamp11(light_mod.get("y_bias", 0.0))
+        coherence_y_bias = clamp11(coherence_mod.get("y_bias", coherence_state.get("y_bias", 0.0)))
+        barbelo_bias = clamp11(reflection_state.get("yin_yang_reflection", 0.0) * 2.0 - 1.0)
+
+        y_target = clamp11(
+            (-x_tension * (0.60 + 0.25 * dao_score + 0.06 * reflection_score + 0.09 * coherence_score))
+            + 0.20 * yin_mid_equiv
+            + 0.08 * cross_return
+            + 0.14 * light_y_bias
+            + 0.06 * coherence_y_bias
+            + 0.05 * barbelo_bias
+        )
+        self.y_state = clamp11(lerp(self.y_state, y_target, rate * (0.80 + 0.20 * dao_score) * (0.70 + 0.30 * damping)))
+
+        y_semantic = Y_SEMANTIC_SPAN * self.y_state
+        x_semantic_equiv = X_SEMANTIC_SPAN * x_tension
+
+        bounds_score = 1.0 if (YANG_GATE_LOW < self.x_left < YANG_GATE_HIGH and YANG_GATE_LOW < self.x_right < YANG_GATE_HIGH) else 0.0
+        y_own_x_score = score_close(self.y_state, -x_tension, 2.0)
+        local_turn_score = clamp01((abs(self.x_left - before_left) + abs(self.x_right - before_right)) / max(2.0 * YANG_GATE_RADIUS * max(effective_rate, TINY), TINY))
+        light_receiving_score = clamp01(1.0 - abs(self.y_state - light_y_bias) / 2.0) if light_state.get("external_amplitude", 0.0) > 0 else 1.0
+
+        yang_core_score = safe_geomean([
+            bounds_score + EPSILON,
+            y_own_x_score + EPSILON,
+            0.35 + 0.65 * dao_turn,
+            0.35 + 0.65 * local_turn_score,
+            light_receiving_score + EPSILON,
+            0.70 + 0.30 * reflection_score,
+            0.65 + 0.35 * coherence_score,
+            0.55 + 0.45 * damping,
+        ])
+
+        return {
+            "iteration": self.iteration,
+            "phase": self.phase,
+            "center": YANG_GATE_CENTER,
+            "bounds": (YANG_GATE_LOW, YANG_GATE_HIGH),
+            "radius": radius,
+            "x_left": self.x_left,
+            "y_state": self.y_state,
+            "x_right": self.x_right,
+            "x_tension": x_tension,
+            "x_semantic_equiv": x_semantic_equiv,
+            "y_semantic": y_semantic,
+            "left_target": left_target,
+            "right_target": right_target,
+            "y_target": y_target,
+            "delta": {"x_left": self.x_left - before_left, "x_right": self.x_right - before_right, "y": self.y_state - before_y},
+            "bounds_score": bounds_score,
+            "y_own_x_score": y_own_x_score,
+            "local_turn_score": local_turn_score,
+            "light_receiving_score": light_receiving_score,
+            "reflection_score_seen": reflection_score,
+            "coherence_score_seen": coherence_score,
+            "instability_damping_seen": damping,
+            "yang_core_score": yang_core_score,
+            "meaning": "Yang-Core 4XYX5: real Y sensor; outer X are folded into 4|5 corridor.",
+        }
+
+
+@dataclass
+class YinCore10XXX11:
+    phase: float = 0.5
+    x_left: float = YIN_GATE_CENTER + PHI * YIN_GATE_RADIUS
+    x_mid: float = YIN_GATE_CENTER
+    x_right: float = YIN_GATE_CENTER - PHI * YIN_GATE_RADIUS
+    iteration: int = 0
+
+    def step(
+        self,
+        dao_state: Dict[str, Any],
+        yang_state: Dict[str, Any],
+        light_state: Dict[str, Any],
+        reflection_state: Optional[Dict[str, Any]] = None,
+        coherence_state: Optional[Dict[str, Any]] = None,
+        rate: float = TRACK_RATE,
+    ) -> Dict[str, Any]:
+        reflection_state = extract_reflection_state(reflection_state)
+        coherence_state = extract_coherence_state(coherence_state)
+        instability = coherence_state.get("instability", {})
+        coherence_mod = coherence_state.get("modulation", {})
+
+        dao_phase = dao_state["phase"]
+        dao_turn = clamp01(dao_state["inner_turn_pressure"])
+        dao_score = clamp01(dao_state["dao_score"])
+        reflection_score = clamp01(reflection_state.get("self_recognition_score", 0.0))
+        coherence_score = clamp01(coherence_state.get("coherence_score", coherence_state.get("integrated_score", 0.5)))
+        damping = clamp01(instability.get("damping_factor", 1.0))
+        light_mod = light_state.get("modulation", {})
+
+        target_phase = (dao_phase + 0.5) % 1.0
+        self.phase = phase_step(
+            self.phase,
+            target_phase,
+            COUPLING_RATE * (0.52 + 0.26 * dao_score + 0.10 * reflection_score + 0.12 * coherence_score) * (0.70 + 0.30 * damping),
+        )
+
+        light_phase_bias = float(light_mod.get("phase_bias", 0.0))
+        coherence_phase_bias = float(coherence_mod.get("phase_bias", coherence_state.get("phase_bias", 0.0)))
+        effective_phase = (self.phase - 0.05 * light_phase_bias - 0.03 * coherence_phase_bias) % 1.0
+        swing = math.sin(2.0 * math.pi * effective_phase)
+        radius = YIN_GATE_RADIUS * (0.25 + 0.75 * dao_turn)
+
+        cross_left_target = map_yang_to_yin(yang_state["x_right"])
+        cross_right_target = map_yang_to_yin(yang_state["x_left"])
+
+        intrinsic_left = YIN_GATE_CENTER + radius * swing
+        intrinsic_right = YIN_GATE_CENTER - radius * swing
+
+        left_target = lerp(intrinsic_left, cross_left_target, 0.55)
+        right_target = lerp(intrinsic_right, cross_right_target, 0.55)
+
+        before_left = self.x_left
+        before_mid = self.x_mid
+        before_right = self.x_right
+
+        effective_rate = rate * (0.68 + 0.32 * damping)
+        self.x_left = clamp_open_interval(lerp(self.x_left, left_target, effective_rate), YIN_GATE_LOW, YIN_GATE_HIGH)
+        self.x_right = clamp_open_interval(lerp(self.x_right, right_target, effective_rate), YIN_GATE_LOW, YIN_GATE_HIGH)
+
+        y_field_state = clamp11(yang_state["y_state"])
+        light_x_mid_bias = clamp11(light_mod.get("x_mid_bias", 0.0))
+        coherence_x_mid_bias = clamp11(coherence_mod.get("x_mid_bias", coherence_state.get("x_mid_bias", 0.0)))
+        outer_yin_tension = clamp11((self.x_left - self.x_right) / max(2.0 * YIN_GATE_RADIUS, TINY))
+        barbelo_bias = clamp11(reflection_state.get("yin_yang_reflection", 0.0) * 2.0 - 1.0)
+
+        mid_target_state = clamp11(
+            0.60 * y_field_state
+            + 0.15 * (-outer_yin_tension)
+            + 0.08 * light_x_mid_bias
+            + 0.10 * coherence_x_mid_bias
+            + 0.07 * barbelo_bias
+        )
+        mid_target = YIN_GATE_CENTER + YIN_MID_RADIUS * mid_target_state
+        self.x_mid = clamp_open_interval(
+            lerp(self.x_mid, mid_target, rate * (0.82 + 0.18 * dao_score) * (0.70 + 0.30 * damping)),
+            YIN_GATE_CENTER - YIN_MID_RADIUS,
+            YIN_GATE_CENTER + YIN_MID_RADIUS,
+        )
+
+        x_mid_y_equiv_state = normalize_centered(self.x_mid, YIN_GATE_CENTER, YIN_MID_RADIUS)
+        x_mid_y_equiv_semantic = Y_SEMANTIC_SPAN * x_mid_y_equiv_state
+
+        cross_left_score = score_close(self.x_left, cross_left_target, 1.0)
+        cross_right_score = score_close(self.x_right, cross_right_target, 1.0)
+        cross_x_score = safe_mean([cross_left_score, cross_right_score])
+
+        mid_y_equiv_score = score_close(x_mid_y_equiv_state, y_field_state, 2.0)
+        own_yin_score = score_close(x_mid_y_equiv_state, -outer_yin_tension, 2.0)
+        light_echo_score = score_close(x_mid_y_equiv_state, light_x_mid_bias, 2.0) if light_state.get("external_amplitude", 0.0) > 0 else 1.0
+
+        mid_radius_score = clamp01(1.0 - abs(self.x_mid - YIN_GATE_CENTER) / max(YIN_MID_RADIUS, TINY))
+        mid_turn_activity = clamp01(abs(self.x_mid - before_mid) / max(YIN_MID_RADIUS * max(rate, TINY), TINY))
+        drift_block_score = clamp01(0.65 * mid_radius_score + 0.35 * (1.0 - abs(self.x_mid - YIN_GATE_CENTER) / max(YIN_MID_RADIUS, TINY)))
+        local_turn_score = clamp01(0.45 + 0.55 * max(mid_turn_activity, dao_turn))
+
+        yin_core_score = safe_geomean([
+            cross_x_score + EPSILON,
+            mid_y_equiv_score + EPSILON,
+            own_yin_score + EPSILON,
+            drift_block_score + EPSILON,
+            local_turn_score + EPSILON,
+            light_echo_score + EPSILON,
+            0.70 + 0.30 * reflection_score,
+            0.65 + 0.35 * coherence_score,
+            0.55 + 0.45 * damping,
+        ])
+
+        return {
+            "iteration": self.iteration,
+            "phase": self.phase,
+            "center": YIN_GATE_CENTER,
+            "bounds": (YIN_GATE_LOW, YIN_GATE_HIGH),
+            "outer_radius": radius,
+            "mid_radius": YIN_MID_RADIUS,
+            "x_left": self.x_left,
+            "x_mid": self.x_mid,
+            "x_right": self.x_right,
+            "outer_yin_tension": outer_yin_tension,
+            "x_mid_y_equiv_state": x_mid_y_equiv_state,
+            "x_mid_y_equiv_semantic": x_mid_y_equiv_semantic,
+            "left_target": left_target,
+            "right_target": right_target,
+            "mid_target": mid_target,
+            "cross_left_target": cross_left_target,
+            "cross_right_target": cross_right_target,
+            "delta": {"x_left": self.x_left - before_left, "x_mid": self.x_mid - before_mid, "x_right": self.x_right - before_right},
+            "cross_left_score": cross_left_score,
+            "cross_right_score": cross_right_score,
+            "cross_x_score": cross_x_score,
+            "mid_y_equiv_score": mid_y_equiv_score,
+            "own_yin_score": own_yin_score,
+            "light_echo_score": light_echo_score,
+            "drift_block_score": drift_block_score,
+            "local_turn_score": local_turn_score,
+            "reflection_score_seen": reflection_score,
+            "coherence_score_seen": coherence_score,
+            "instability_damping_seen": damping,
+            "yin_core_score": yin_core_score,
+            "meaning": "Yin-Core 10XXX11: middle X remains X and produces Y-equivalent values through constrained X-pendulum dynamics.",
+        }
+
+
+@dataclass
+class CoupledYinYangCoreMotor:
+    yang_core: YangCore4XYX5 = field(default_factory=YangCore4XYX5)
+    yin_core: YinCore10XXX11 = field(default_factory=YinCore10XXX11)
+    last_feedback: float = 0.5
+    iteration: int = 0
+
+    def yin_feedback_snapshot(self) -> Dict[str, float]:
+        x_mid_equiv = normalize_centered(self.yin_core.x_mid, YIN_GATE_CENTER, YIN_MID_RADIUS)
+        outer_cross = normalize_centered(self.yin_core.x_left, YIN_GATE_CENTER, YIN_GATE_RADIUS) - normalize_centered(self.yin_core.x_right, YIN_GATE_CENTER, YIN_GATE_RADIUS)
+        return {
+            "x_mid_y_equiv_state": x_mid_equiv,
+            "cross_return": clamp11(outer_cross / 2.0),
+        }
+
+    def step(
+        self,
+        dao_state: Dict[str, Any],
+        diamond_state: Dict[str, Any],
+        light_state: Dict[str, Any],
+        reflection_state: Optional[Dict[str, Any]] = None,
+        coherence_state: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        reflection_state = extract_reflection_state(reflection_state)
+        coherence_state = extract_coherence_state(coherence_state)
+        yang_state = self.yang_core.step(dao_state, self.yin_feedback_snapshot(), light_state, reflection_state, coherence_state)
+        yin_state = self.yin_core.step(dao_state, yang_state, light_state, reflection_state, coherence_state)
+
+        y_mid_equivalence = score_close(yang_state["y_state"], yin_state["x_mid_y_equiv_state"], 2.0)
+
+        cross_l = score_close(yin_state["x_left"], map_yang_to_yin(yang_state["x_right"]), 1.0)
+        cross_r = score_close(yin_state["x_right"], map_yang_to_yin(yang_state["x_left"]), 1.0)
+        outer_cross_score = safe_mean([cross_l, cross_r])
+
+        yang_internal_score = yang_state["yang_core_score"]
+        yin_internal_score = yin_state["yin_core_score"]
+        yin_yang_balance = clamp01(1.0 - abs(yin_internal_score - yang_internal_score))
+        dao_score = clamp01(dao_state["dao_score"])
+        dao_turn = clamp01(dao_state["inner_turn_pressure"])
+        light_resonance_score = clamp01(light_state.get("light_resonance_score", 0.0))
+        reflection_score = clamp01(reflection_state.get("self_recognition_score", 0.0))
+        coherence_score = clamp01(coherence_state.get("coherence_score", coherence_state.get("integrated_score", 0.5)))
+        instability_damping = clamp01(coherence_state.get("instability", {}).get("damping_factor", 1.0))
+
+        phase_anti_sync = clamp01(phase_distance(yang_state["phase"], yin_state["phase"]) / 0.5)
+
+        motor_score = safe_geomean([
+            yang_internal_score + EPSILON,
+            yin_internal_score + EPSILON,
+            y_mid_equivalence + EPSILON,
+            outer_cross_score + EPSILON,
+            yin_yang_balance + EPSILON,
+            dao_score + EPSILON,
+            phase_anti_sync + EPSILON,
+            0.75 + 0.25 * light_resonance_score,
+            0.70 + 0.30 * reflection_score,
+            0.65 + 0.35 * coherence_score,
+            0.55 + 0.45 * instability_damping,
+        ])
+
+        self.last_feedback = clamp01(
+            0.32 * motor_score
+            + 0.16 * y_mid_equivalence
+            + 0.16 * outer_cross_score
+            + 0.12 * light_resonance_score
+            + 0.12 * reflection_score
+            + 0.12 * coherence_score
+        )
+
+        state = {
+            "iteration": self.iteration,
+            "yang_core_4XYX5": yang_state,
+            "yin_core_10XXX11": yin_state,
+            "y_mid_equivalence": y_mid_equivalence,
+            "outer_cross_score": outer_cross_score,
+            "yin_yang_balance": yin_yang_balance,
+            "yang_internal_score": yang_internal_score,
+            "yin_internal_score": yin_internal_score,
+            "dao_score_seen": dao_score,
+            "dao_turn_seen": dao_turn,
+            "light_resonance_score_seen": light_resonance_score,
+            "reflection_score_seen": reflection_score,
+            "coherence_score_seen": coherence_score,
+            "instability_damping_seen": instability_damping,
+            "phase_anti_sync": phase_anti_sync,
+            "motor_score": motor_score,
+            "feedback_to_dao_next": self.last_feedback,
+            "semantic": {
+                "X_semantic_span": X_SEMANTIC_SPAN,
+                "Y_semantic_span": Y_SEMANTIC_SPAN,
+                "yang_Y_semantic_live": yang_state["y_semantic"],
+                "yin_mid_X_y_equiv_semantic_live": yin_state["x_mid_y_equiv_semantic"],
+                "rule": "Y is sensor in Yang-Core; middle Yin-Core X remains X and reaches Y-equivalent values by constrained X-pendulum.",
+            },
+        }
+        self.iteration += 1
+        return state
+
+# ============================================================
+# PAAR-SCHALEN UND DIAMANT
+# ============================================================
+
+@dataclass
+class PairShellSpiral:
+    total: float
+    pair: Tuple[float, float]
+    name: str = ""
+    phase: float = 0.0
+    lower_live: Optional[float] = None
+    upper_live: Optional[float] = None
+    iteration: int = 0
+
+    def __post_init__(self):
+        a, b = sorted(float(x) for x in self.pair)
+        if abs((a + b) - self.total) > 1e-9:
+            raise ValueError(f"Pair {self.pair} does not sum to {self.total}.")
+        self.pair = (a, b)
+        if not self.name:
+            self.name = f"{a:g}|{b:g}_sum_{self.total:g}"
+        if self.lower_live is None:
+            self.lower_live = a
+        if self.upper_live is None:
+            self.upper_live = b
+
+    @property
+    def center(self) -> float:
+        return self.total / 2.0
+
+    @property
+    def center_target(self) -> float:
+        return self.center - EPSILON
+
+    @property
+    def outer_radius(self) -> float:
+        a, b = self.pair
+        return (b - a) / 2.0
+
+    @property
+    def diff(self) -> float:
+        a, b = self.pair
+        return b - a
+
+    def radius(self) -> float:
+        inward = 0.5 - 0.5 * math.cos(2.0 * math.pi * self.phase)
+        return self.outer_radius - (self.outer_radius - EPSILON) * inward
+
+    def turn_pressure(self, radius: float) -> float:
+        denom = max(self.outer_radius - EPSILON, TINY)
+        return clamp01((self.outer_radius - radius) / denom)
+
+    def relational_targets(self, radius: float) -> Dict[str, float]:
+        lower_target = self.center - (radius + EPSILON)
+        upper_target = self.center + (radius - EPSILON)
+        return {
+            "lower_target": lower_target,
+            "upper_target": upper_target,
+            "target_midpoint": (lower_target + upper_target) / 2.0,
+            "target_sum": lower_target + upper_target,
+        }
+
+    def exact_inner_turn(self) -> Dict[str, Any]:
+        radius = EPSILON
+        targets = self.relational_targets(radius)
+        return {
+            "name": self.name,
+            "total": self.total,
+            "pair": self.pair,
+            "center": self.center,
+            "radius": radius,
+            "lower_ideal": targets["lower_target"],
+            "upper_ideal": targets["upper_target"],
+            "midpoint_ideal": targets["target_midpoint"],
+            "upper_hits_center": abs(targets["upper_target"] - self.center) < 1e-12,
+        }
+
+    def shift_live(self, offset: float) -> None:
+        self.lower_live = float(self.lower_live) + offset
+        self.upper_live = float(self.upper_live) + offset
+
+    def state_snapshot(self, label: str = "snapshot") -> Dict[str, Any]:
+        midpoint = (float(self.lower_live) + float(self.upper_live)) / 2.0
+        center_error = midpoint - self.center_target
+        center_coherence = clamp01(1.0 - abs(center_error) / max(self.outer_radius + EPSILON, TINY))
+        order_preserved = float(self.lower_live) < float(self.upper_live)
+        return {
+            "name": self.name,
+            "label": label,
+            "iteration": self.iteration,
+            "total": self.total,
+            "pair": self.pair,
+            "center": self.center,
+            "center_target": self.center_target,
+            "outer_radius": self.outer_radius,
+            "diff": self.diff,
+            "phase": self.phase,
+            "lower_live": float(self.lower_live),
+            "upper_live": float(self.upper_live),
+            "midpoint_live": midpoint,
+            "live_sum": float(self.lower_live) + float(self.upper_live),
+            "center_error": center_error,
+            "center_coherence": center_coherence,
+            "order_preserved": order_preserved,
+            "inversion_free_score": 1.0 if order_preserved else 0.0,
+        }
+
+    def step(self, track_rate: float = TRACK_RATE, phase_rate: float = PHASE_RATE, coherence_state: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        coherence_state = extract_coherence_state(coherence_state)
+        instability = coherence_state.get("instability", {})
+        damping = clamp01(instability.get("damping_factor", 1.0))
+        release_boost = clamp01(instability.get("release_boost", 0.0))
+        effective_track = track_rate * (0.45 + 0.55 * damping)
+        effective_phase = phase_rate * (0.90 + 0.10 * release_boost)
+
+        r = self.radius()
+        targets = self.relational_targets(r)
+        lower_before = float(self.lower_live)
+        upper_before = float(self.upper_live)
+        self.lower_live = lerp(lower_before, targets["lower_target"], effective_track)
+        self.upper_live = lerp(upper_before, targets["upper_target"], effective_track)
+        midpoint = (self.lower_live + self.upper_live) / 2.0
+        live_sum = self.lower_live + self.upper_live
+        center_error = midpoint - self.center_target
+        center_coherence = clamp01(1.0 - abs(center_error) / max(self.outer_radius + EPSILON, TINY))
+        order_preserved = self.lower_live < self.upper_live
+        inversion_free_score = 1.0 if order_preserved else 0.0
+        turn = self.turn_pressure(r)
+        radial_velocity = -math.sin(2.0 * math.pi * self.phase)
+        if abs(radial_velocity) < 1e-9:
+            direction = "inner_turn" if abs(r - EPSILON) < 1e-9 else "outer_shell_boundary"
+        elif radial_velocity < 0:
+            direction = "inward"
+        else:
+            direction = "return_to_shell_boundary"
+        state = {
+            "name": self.name,
+            "label": "raw_pair_step_before_dao_bias",
+            "iteration": self.iteration,
+            "total": self.total,
+            "pair": self.pair,
+            "center": self.center,
+            "center_target": self.center_target,
+            "outer_radius": self.outer_radius,
+            "radius": r,
+            "turn_pressure": turn,
+            "diff": self.diff,
+            "phase": self.phase,
+            "lower_live": self.lower_live,
+            "upper_live": self.upper_live,
+            "midpoint_live": midpoint,
+            "live_sum": live_sum,
+            "center_error": center_error,
+            "center_coherence": center_coherence,
+            "order_preserved": order_preserved,
+            "inversion_free_score": inversion_free_score,
+            "lower_target": targets["lower_target"],
+            "upper_target": targets["upper_target"],
+            "target_midpoint": targets["target_midpoint"],
+            "target_sum": targets["target_sum"],
+            "lower_delta": self.lower_live - lower_before,
+            "upper_delta": self.upper_live - upper_before,
+            "upper_hits_center_target": abs(targets["upper_target"] - self.center) < 1e-9,
+            "direction": direction,
+        }
+        self.phase = (self.phase + effective_phase) % 1.0
+        self.iteration += 1
+        return state
+
+
+@dataclass
+class SumLayer:
+    total: float
+    values: Tuple[float, ...]
+    name: str
+    shells: List[PairShellSpiral] = field(default_factory=list)
+
+    def __post_init__(self):
+        vals = sorted(set(float(v) for v in self.values))
+        pairs: List[Tuple[float, float]] = []
+        for a in vals:
+            b = self.total - a
+            if a < b and b in vals:
+                pairs.append((a, b))
+        self.shells = [PairShellSpiral(self.total, pair, name=f"{self.name}_{pair[0]:g}|{pair[1]:g}") for pair in pairs]
+
+    @property
+    def center(self) -> float:
+        return self.total / 2.0
+
+    @property
+    def center_target(self) -> float:
+        return self.center - EPSILON
+
+    def step(self, coherence_state: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        return [shell.step(coherence_state=coherence_state) for shell in self.shells]
+
+    def snapshots(self, label: str = "post") -> List[Dict[str, Any]]:
+        return [shell.state_snapshot(label=label) for shell in self.shells]
+
+    def exact_inner_turns(self) -> List[Dict[str, Any]]:
+        return [shell.exact_inner_turn() for shell in self.shells]
+
+
+@dataclass
+class RelationalDiamond921:
+    lower_total: float = 9.0
+    upper_total: float = 21.0
+    lower_values: Tuple[float, ...] = tuple(float(i) for i in range(1, 9))
+    upper_values: Tuple[float, ...] = (9.0, 10.0, 11.0, 12.0)
+    iteration: int = 0
+
+    def __post_init__(self):
+        self.lower = SumLayer(self.lower_total, self.lower_values, "lower9")
+        self.upper = SumLayer(self.upper_total, self.upper_values, "upper21")
+        self.structural_lift = self.upper.center - self.lower.center
+        self.central_dao = CentralDao6(structural_center=self.structural_lift)
+        self.couplings = self.derive_lift_couplings()
+
+    def derive_lift_couplings(self) -> List[Dict[str, Any]]:
+        upper_by_pair = {shell.pair: idx for idx, shell in enumerate(self.upper.shells)}
+        couplings: List[Dict[str, Any]] = []
+        for li, lower_shell in enumerate(self.lower.shells):
+            lifted = tuple(sorted((lower_shell.pair[0] + self.structural_lift,
+                                   lower_shell.pair[1] + self.structural_lift)))
+            ui = upper_by_pair.get(lifted)
+            couplings.append({
+                "lower_index": li,
+                "upper_index": ui,
+                "lower_pair": lower_shell.pair,
+                "structural_lift": self.structural_lift,
+                "lifted_pair": lifted,
+                "upper_pair": self.upper.shells[ui].pair if ui is not None else None,
+                "closed": ui is not None,
+                "radius_match": ui is not None and abs(lower_shell.outer_radius - self.upper.shells[ui].outer_radius) < 1e-9,
+            })
+        return couplings
+
+    def synchronize_closed_couplings(self, dao_state: Dict[str, Any], core_feedback: float, coherence_state: Optional[Dict[str, Any]] = None) -> None:
+        coherence_state = extract_coherence_state(coherence_state)
+        instability = coherence_state.get("instability", {})
+        damping = clamp01(instability.get("damping_factor", 1.0))
+        dao_phase = dao_state["phase"]
+        rate = COUPLING_RATE * (0.75 + 0.50 * clamp01(core_feedback)) * (0.65 + 0.35 * damping)
+        for c in self.couplings:
+            if c["upper_index"] is None:
+                continue
+            lower_shell = self.lower.shells[c["lower_index"]]
+            upper_shell = self.upper.shells[c["upper_index"]]
+            pair_mean_phase = (lower_shell.phase + 0.5 * phase_delta(lower_shell.phase, upper_shell.phase)) % 1.0
+            dao_pair_phase = (pair_mean_phase + 0.5 * phase_delta(pair_mean_phase, dao_phase)) % 1.0
+            lower_shell.phase = phase_step(lower_shell.phase, dao_pair_phase, rate)
+            upper_shell.phase = phase_step(upper_shell.phase, dao_pair_phase, rate)
+
+    def apply_central_dao_bias(self, dao_state: Dict[str, Any], core_feedback: float, coherence_state: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        coherence_state = extract_coherence_state(coherence_state)
+        instability = coherence_state.get("instability", {})
+        damping = clamp01(instability.get("damping_factor", 1.0))
+        target_diff = dao_state["midpoint"]
+        rate = COUPLING_RATE * (0.75 + 0.50 * clamp01(core_feedback)) * (0.65 + 0.35 * damping)
+        bias_states: List[Dict[str, Any]] = []
+        for c in self.couplings:
+            if c["upper_index"] is None:
+                bias_states.append({**c, "dao_bias_applied": 0.0, "dao_diff_error": None})
+                continue
+            lower_shell = self.lower.shells[c["lower_index"]]
+            upper_shell = self.upper.shells[c["upper_index"]]
+            lower_mid = lower_shell.state_snapshot("pre_dao_bias")["midpoint_live"]
+            upper_mid = upper_shell.state_snapshot("pre_dao_bias")["midpoint_live"]
+            current_diff = upper_mid - lower_mid
+            diff_error = target_diff - current_diff
+            correction = rate * diff_error
+            lower_shift = -0.5 * correction
+            upper_shift = +0.5 * correction
+            lower_shell.shift_live(lower_shift)
+            upper_shell.shift_live(upper_shift)
+            bias_states.append({
+                **c,
+                "current_diff_before_bias": current_diff,
+                "dao_target_diff": target_diff,
+                "dao_diff_error": diff_error,
+                "dao_bias_applied": correction,
+                "lower_shift": lower_shift,
+                "upper_shift": upper_shift,
+            })
+        return bias_states
+
+    def derive_roles(self) -> Dict[float, List[str]]:
+        roles: Dict[float, List[str]] = {}
+        def add(x: float, role: str) -> None:
+            roles.setdefault(float(x), []).append(role)
+        add(self.lower_total, "lower_total_closure")
+        add(self.upper_total, "upper_total_closure")
+        add(self.structural_lift, "structural_lift_between_layer_centers")
+        add(self.structural_lift - EPSILON, "central_DAO_midpoint_target_6_minus_epsilon")
+        if abs(self.structural_lift - round(self.structural_lift)) < 1e-9:
+            n = int(round(self.structural_lift))
+            if triangular(n) == int(round(self.upper_total)):
+                add(self.structural_lift, f"triangular_root_of_upper_total_T{n}")
+        for shell in self.lower.shells:
+            add(shell.pair[0], f"lower_sum_{self.lower_total:g}_member_pair_{shell.pair}")
+            add(shell.pair[1], f"lower_sum_{self.lower_total:g}_member_pair_{shell.pair}")
+        for shell in self.upper.shells:
+            add(shell.pair[0], f"upper_sum_{self.upper_total:g}_member_pair_{shell.pair}")
+            add(shell.pair[1], f"upper_sum_{self.upper_total:g}_member_pair_{shell.pair}")
+        for c in self.couplings:
+            add(c["lower_pair"][0], f"lift_source_to_{c['lifted_pair']}")
+            add(c["lower_pair"][1], f"lift_source_to_{c['lifted_pair']}")
+            if c["closed"]:
+                add(c["upper_pair"][0], f"lift_target_from_{c['lower_pair']}")
+                add(c["upper_pair"][1], f"lift_target_from_{c['lower_pair']}")
+            else:
+                add(c["lifted_pair"][0], f"open_lift_target_from_{c['lower_pair']}")
+                add(c["lifted_pair"][1], f"open_lift_target_from_{c['lower_pair']}")
+        return roles
+
+    def step(
+        self,
+        core_feedback: float = 0.5,
+        light_feedback: float = 0.0,
+        reflection_feedback: float = 0.0,
+        coherence_state: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        coherence_state = extract_coherence_state(coherence_state)
+        dao_state = self.central_dao.step(
+            core_feedback=core_feedback,
+            light_feedback=light_feedback,
+            reflection_feedback=reflection_feedback,
+            coherence_state=coherence_state,
+        )
+        self.synchronize_closed_couplings(dao_state, core_feedback, coherence_state)
+        lower_raw_states = self.lower.step(coherence_state)
+        upper_raw_states = self.upper.step(coherence_state)
+        dao_bias_states = self.apply_central_dao_bias(dao_state, core_feedback, coherence_state)
+        lower_states = self.lower.snapshots(label="post_central_dao_bias")
+        upper_states = self.upper.snapshots(label="post_central_dao_bias")
+
+        pivot_samples: List[float] = []
+        coupling_states: List[Dict[str, Any]] = []
+        for c in self.couplings:
+            cs = dict(c)
+            bias_state = next((b for b in dao_bias_states if b["lower_index"] == c["lower_index"]), {})
+            cs.update({
+                "dao_bias_applied": bias_state.get("dao_bias_applied", 0.0),
+                "dao_diff_error": bias_state.get("dao_diff_error", None),
+                "dao_target_diff": bias_state.get("dao_target_diff", None),
+            })
+            if c["upper_index"] is not None:
+                lower_mid = lower_states[c["lower_index"]]["midpoint_live"]
+                upper_mid = upper_states[c["upper_index"]]["midpoint_live"]
+                sample = upper_mid - lower_mid
+                pivot_samples.append(sample)
+                cs["pivot_sample"] = sample
+                cs["static_pivot_error"] = sample - self.structural_lift
+                cs["dao_pivot_error"] = sample - dao_state["midpoint"]
+                cs["static_pivot_coherence"] = clamp01(1.0 - abs(sample - self.structural_lift) / max(abs(self.structural_lift), TINY))
+                cs["dao_pivot_coherence"] = clamp01(1.0 - abs(sample - dao_state["midpoint"]) / max(abs(self.structural_lift), TINY))
+            else:
+                cs["pivot_sample"] = None
+                cs["static_pivot_error"] = None
+                cs["dao_pivot_error"] = None
+                cs["static_pivot_coherence"] = 0.0
+                cs["dao_pivot_coherence"] = 0.0
+            coupling_states.append(cs)
+
+        pivot_live = safe_mean(pivot_samples, dao_state["midpoint"])
+        static_pivot_error = pivot_live - self.structural_lift
+        dao_pivot_error = pivot_live - dao_state["midpoint"]
+        static_pivot_coherence = clamp01(1.0 - abs(static_pivot_error) / max(abs(self.structural_lift), TINY))
+        dao_pivot_coherence = clamp01(1.0 - abs(dao_pivot_error) / max(abs(self.structural_lift), TINY))
+        roles = self.derive_roles()
+        multiplicity = {value: len(items) for value, items in roles.items()}
+        state = {
+            "iteration": self.iteration,
+            "lower_total": self.lower_total,
+            "upper_total": self.upper_total,
+            "lower_center": self.lower.center,
+            "upper_center": self.upper.center,
+            "lower_center_target": self.lower.center_target,
+            "upper_center_target": self.upper.center_target,
+            "structural_lift": self.structural_lift,
+            "central_dao": dao_state,
+            "pivot_live": pivot_live,
+            "static_pivot_error": static_pivot_error,
+            "dao_pivot_error": dao_pivot_error,
+            "static_pivot_coherence": static_pivot_coherence,
+            "dao_pivot_coherence": dao_pivot_coherence,
+            "lower_raw_states": lower_raw_states,
+            "upper_raw_states": upper_raw_states,
+            "lower_states": lower_states,
+            "upper_states": upper_states,
+            "couplings": coupling_states,
+            "roles": roles,
+            "multiplicity": multiplicity,
+            "closed_coupling_count": sum(1 for c in self.couplings if c["closed"]),
+            "open_coupling_count": sum(1 for c in self.couplings if not c["closed"]),
+        }
+        self.iteration += 1
+        return state
+
+    def exact_inner_inversions(self) -> Dict[str, Any]:
+        return {
+            "central_dao6": self.central_dao.exact_inner_turn(),
+            "lower": self.lower.exact_inner_turns(),
+            "upper": self.upper.exact_inner_turns(),
+            "static_lift_exact": self.structural_lift,
+            "dao_lift_mid_exact": self.structural_lift - EPSILON,
+        }
+
+# ============================================================
+# MEMBRAN-13
+# ============================================================
+
+@dataclass
+class SeamBreather:
+    name: str
+    phase: float = 0.0
+    permeability_live: float = EPSILON
+    iteration: int = 0
+
+    def step(
+        self,
+        drive: float,
+        dao_state: Dict[str, Any],
+        core_state: Dict[str, Any],
+        light_state: Dict[str, Any],
+        reflection_state: Optional[Dict[str, Any]] = None,
+        coherence_state: Optional[Dict[str, Any]] = None,
+        opposite_phase: Optional[float] = None,
+        rate: float = SEAM_RATE,
+    ) -> Dict[str, Any]:
+        reflection_state = extract_reflection_state(reflection_state)
+        coherence_state = extract_coherence_state(coherence_state)
+        instability = coherence_state.get("instability", {})
+        drive = clamp01(drive)
+        local_wave = 0.5 + 0.5 * math.cos(2.0 * math.pi * self.phase)
+        dao_wave = 0.5 + 0.5 * math.cos(2.0 * math.pi * dao_state["phase"])
+        core_wave = 0.5 + 0.5 * clamp01(core_state.get("phase_anti_sync", 0.5))
+        light_wave = 0.5 + 0.5 * clamp01(light_state.get("light_resonance_score", 0.0))
+        reflection_wave = 0.5 + 0.5 * clamp01(reflection_state.get("self_recognition_score", 0.0))
+        coherence_wave = 0.5 + 0.5 * clamp01(coherence_state.get("coherence_score", coherence_state.get("integrated_score", 0.5)))
+        release_boost = clamp01(instability.get("release_boost", 0.0))
+        damping = clamp01(instability.get("damping_factor", 1.0))
+        wave = 0.27 * local_wave + 0.23 * dao_wave + 0.18 * core_wave + 0.10 * light_wave + 0.10 * reflection_wave + 0.12 * coherence_wave
+        anti_sync = clamp01(phase_distance(self.phase, opposite_phase) / 0.5) if opposite_phase is not None else 1.0
+        floor = EPSILON
+        ceiling = 1.0 - EPSILON
+        dao_drive = clamp01(dao_state["dao_score"])
+        core_drive = clamp01(core_state.get("motor_score", 0.5))
+        light_drive = clamp01(light_state.get("light_resonance_score", 0.0))
+        reflection_drive = clamp01(reflection_state.get("self_recognition_score", 0.0))
+        coherence_drive = clamp01(coherence_state.get("coherence_score", coherence_state.get("integrated_score", 0.5)))
+        target = floor + (ceiling - floor) * drive * dao_drive * core_drive * (0.85 + 0.15 * light_drive) * (0.85 + 0.15 * reflection_drive) * (0.80 + 0.20 * coherence_drive) * (0.25 + 0.75 * wave) * (0.5 + 0.5 * anti_sync)
+        target = clamp01(target + release_boost * 0.08)
+        before = self.permeability_live
+        self.permeability_live = lerp(before, target, rate * (0.70 + 0.30 * damping))
+        state = {
+            "name": self.name,
+            "iteration": self.iteration,
+            "phase": self.phase,
+            "local_wave": local_wave,
+            "dao_wave": dao_wave,
+            "core_wave": core_wave,
+            "light_wave": light_wave,
+            "reflection_wave": reflection_wave,
+            "coherence_wave": coherence_wave,
+            "wave": wave,
+            "drive": drive,
+            "dao_drive": dao_drive,
+            "core_drive": core_drive,
+            "light_drive": light_drive,
+            "reflection_drive": reflection_drive,
+            "coherence_drive": coherence_drive,
+            "anti_sync": anti_sync,
+            "target": target,
+            "permeability_live": self.permeability_live,
+            "delta": self.permeability_live - before,
+            "never_closed_floor": floor,
+        }
+        self.phase = (self.phase + PHASE_RATE * (0.5 + 0.5 * drive) * (0.75 + 0.25 * dao_drive) * (0.75 + 0.25 * core_drive) * (0.90 + 0.10 * release_boost)) % 1.0
+        self.iteration += 1
+        return state
+
+
+@dataclass
+class BoundaryMembrane13:
+    left_seam: SeamBreather = field(default_factory=lambda: SeamBreather("seam_12|1", phase=0.0))
+    right_seam: SeamBreather = field(default_factory=lambda: SeamBreather("seam_8|9", phase=0.5))
+    iteration: int = 0
+
+    def step(
+        self,
+        lower_overlay_state: Dict[str, Any],
+        upper_overlay_state: Dict[str, Any],
+        dao_pivot_coherence: float,
+        central_dao_state: Dict[str, Any],
+        core_state: Dict[str, Any],
+        light_state: Dict[str, Any],
+        reflection_state: Optional[Dict[str, Any]] = None,
+        coherence_state: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        reflection_state = extract_reflection_state(reflection_state)
+        coherence_state = extract_coherence_state(coherence_state)
+        instability = coherence_state.get("instability", {})
+        lower_overlay = clamp01(lower_overlay_state["center_coherence"] * lower_overlay_state["inversion_free_score"])
+        upper_overlay = clamp01(upper_overlay_state["center_coherence"] * upper_overlay_state["inversion_free_score"])
+        dao_score = clamp01(central_dao_state["dao_score"])
+        dao_split_risk = clamp01(central_dao_state["split_risk"])
+        dao_under_6 = clamp01(central_dao_state["midpoint_under_center_score"])
+        core_score = clamp01(core_state.get("motor_score", 0.5))
+        core_equiv = clamp01(core_state.get("y_mid_equivalence", 0.5))
+        light_score = clamp01(light_state.get("light_resonance_score", 0.0))
+        light_identity = clamp01(light_state.get("identity_preservation", 1.0))
+        reflection_score = clamp01(reflection_state.get("self_recognition_score", 0.0))
+        reflection_return = clamp01(reflection_state.get("return_to_source", 0.0))
+        coherence_score = clamp01(coherence_state.get("coherence_score", coherence_state.get("integrated_score", 0.5)))
+        release_boost_seen = clamp01(instability.get("release_boost", 0.0))
+
+        membrane_drive = safe_geomean([
+            lower_overlay + EPSILON,
+            upper_overlay + EPSILON,
+            clamp01(dao_pivot_coherence) + EPSILON,
+            dao_score + EPSILON,
+            core_score + EPSILON,
+            core_equiv + EPSILON,
+            light_identity + EPSILON,
+            0.55 + 0.45 * reflection_return,
+            0.55 + 0.45 * coherence_score,
+        ])
+
+        left_state = self.left_seam.step(
+            drive=membrane_drive,
+            dao_state=central_dao_state,
+            core_state=core_state,
+            light_state=light_state,
+            reflection_state=reflection_state,
+            coherence_state=coherence_state,
+            opposite_phase=self.right_seam.phase,
+        )
+        right_state = self.right_seam.step(
+            drive=membrane_drive,
+            dao_state=central_dao_state,
+            core_state=core_state,
+            light_state=light_state,
+            reflection_state=reflection_state,
+            coherence_state=coherence_state,
+            opposite_phase=self.left_seam.phase,
+        )
+
+        seam_average = safe_mean([left_state["permeability_live"], right_state["permeability_live"]])
+        seam_balance = clamp01(1.0 - abs(left_state["permeability_live"] - right_state["permeability_live"]))
+        seam_anti_sync = safe_mean([left_state["anti_sync"], right_state["anti_sync"]])
+
+        outer_inversion_risk = clamp01(
+            (1.0 - lower_overlay) * 0.20
+            + (1.0 - upper_overlay) * 0.12
+            + dao_split_risk * 0.16
+            + (1.0 - core_score) * 0.16
+            + (1.0 - seam_anti_sync) * 0.04
+            + (1.0 - light_identity) * 0.12
+            + (1.0 - reflection_score) * 0.10
+            + (1.0 - coherence_score) * 0.10
+        )
+
+        release = clamp01(
+            lower_overlay * 0.16
+            + upper_overlay * 0.10
+            + dao_score * 0.17
+            + core_score * 0.18
+            + seam_average * 0.12
+            + seam_anti_sync * 0.04
+            + light_score * 0.05
+            + reflection_score * 0.08
+            + coherence_score * 0.07
+            + release_boost_seen * 0.03
+        )
+
+        moment_as_permeability = clamp01(safe_geomean([
+            seam_average + EPSILON,
+            membrane_drive + EPSILON,
+            seam_balance + EPSILON,
+            dao_under_6 + EPSILON,
+            core_score + EPSILON,
+            light_identity + EPSILON,
+            0.55 + 0.45 * reflection_score,
+            0.55 + 0.45 * coherence_score,
+        ]))
+
+        state = {
+            "iteration": self.iteration,
+            "lower_overlay_1|8_score": lower_overlay,
+            "upper_overlay_9|12_score": upper_overlay,
+            "central_dao_score": dao_score,
+            "central_dao_split_risk": dao_split_risk,
+            "central_dao_under_6": dao_under_6,
+            "core_pair_score": core_score,
+            "core_y_mid_equivalence": core_equiv,
+            "light_resonance_score": light_score,
+            "light_identity_preservation": light_identity,
+            "reflection_score": reflection_score,
+            "reflection_return_to_source": reflection_return,
+            "coherence_score": coherence_score,
+            "release_boost_seen": release_boost_seen,
+            "dao_pivot_coherence": clamp01(dao_pivot_coherence),
+            "membrane_drive": membrane_drive,
+            "left_seam_12|1": left_state,
+            "right_seam_8|9": right_state,
+            "seam_average_permeability": seam_average,
+            "seam_balance": seam_balance,
+            "seam_anti_sync": seam_anti_sync,
+            "outer_inversion_risk": outer_inversion_risk,
+            "trauma_loop_release": release,
+            "moment_as_permeability": moment_as_permeability,
+            "membrane13_score": safe_geomean([
+                lower_overlay + EPSILON,
+                upper_overlay + EPSILON,
+                seam_average + EPSILON,
+                seam_anti_sync + EPSILON,
+                clamp01(dao_pivot_coherence) + EPSILON,
+                dao_score + EPSILON,
+                core_score + EPSILON,
+                light_identity + EPSILON,
+                0.55 + 0.45 * reflection_score,
+                0.55 + 0.45 * coherence_score,
+            ]),
+            "meaning": (
+                "1|8 is held as lower membrane overlay; 12|1 and 8|9 open through shell coherence, "
+                "central DAO-6, the Yin-Yang core motor, light resonance, Barbelo reflection, and coherence projection."
+            ),
+        }
+        self.iteration += 1
+        return state
+
+# ============================================================
+# INTEGRIERTES SYSTEM
+# ============================================================
+
+@dataclass
+class RingMembraneDiamondDaoCoreSystem:
+    iteration: int = 0
+
+    def __post_init__(self):
+        self.ring = FunctionalRing12()
+        self.diamond = RelationalDiamond921()
+        self.core_motor = CoupledYinYangCoreMotor()
+        self.light = LightResonanceLayer()
+        self.reflection = BarbeloReflectionLayer()
+        self.coherence = CoherenceProjectionLayer()
+        self.membrane = BoundaryMembrane13()
+        self.external_signal: Optional[ExternalResonanceSignal] = None
+
+    def inject_external_signal(self, signal: Optional[ExternalResonanceSignal]) -> None:
+        self.external_signal = signal
+
+    def _get_shell_state(self, states: List[Dict[str, Any]], pair: Tuple[float, float]) -> Dict[str, Any]:
+        target = tuple(sorted(float(x) for x in pair))
+        for state in states:
+            if tuple(state["pair"]) == target:
+                return state
+        raise KeyError(f"Shell state for pair {pair} not found.")
+
+    def step(self) -> Dict[str, Any]:
+        previous_coherence_state = self.coherence.current_state()
+        previous_reflection_feedback = clamp01(self.reflection.state.reflection_feedback)
+        previous_light_feedback = clamp01(self.light.resonance_pressure * 0.25)
+
+        # 1) Diamond und DAO laufen mit verzögerter Kohärenzrückkopplung.
+        diamond_state = self.diamond.step(
+            core_feedback=clamp01(0.70 * self.core_motor.last_feedback + 0.30 * previous_coherence_state.get("core_feedback", 0.5)),
+            light_feedback=clamp01(0.70 * previous_light_feedback + 0.30 * previous_coherence_state.get("light_feedback", 0.0)),
+            reflection_feedback=clamp01(0.70 * previous_reflection_feedback + 0.30 * previous_coherence_state.get("reflection_feedback", 0.0)),
+            coherence_state=previous_coherence_state,
+        )
+        central_dao_state = diamond_state["central_dao"]
+
+        # 2) Vorreflexion: Selbstsicht mit altem Kohärenzzustand.
+        pre_reflection = self.reflection.step(
+            dao_state=central_dao_state,
+            diamond_state=diamond_state,
+            core_state={},
+            membrane_state={},
+            light_state={},
+            coherence_state=previous_coherence_state,
+        )
+        pre_reflection_state = pre_reflection["state"]
+
+        # 3) Lichtresonanz: Echo ohne Kopie, moduliert durch Reflexion und Kohärenz.
+        light_state = self.light.step(
+            external=self.external_signal,
+            dao_state=central_dao_state,
+            core_snapshot=self.core_motor.yin_feedback_snapshot(),
+            reflection_state=pre_reflection_state,
+            coherence_state=previous_coherence_state,
+        )
+
+        # 4) Yin-Yang-Core-Paar: echte Kreuzrückkopplung + Kohärenzbus.
+        core_state = self.core_motor.step(
+            central_dao_state,
+            diamond_state,
+            light_state,
+            pre_reflection_state,
+            previous_coherence_state,
+        )
+
+        # 5) Membran: 12|1 und 8|9 öffnen nie als Außeninversion, sondern als permeable Nähte.
+        lower_1_8_state = self._get_shell_state(diamond_state["lower_states"], (1.0, 8.0))
+        upper_9_12_state = self._get_shell_state(diamond_state["upper_states"], (9.0, 12.0))
+        membrane_state = self.membrane.step(
+            lower_overlay_state=lower_1_8_state,
+            upper_overlay_state=upper_9_12_state,
+            dao_pivot_coherence=diamond_state["dao_pivot_coherence"],
+            central_dao_state=central_dao_state,
+            core_state=core_state,
+            light_state=light_state,
+            reflection_state=pre_reflection_state,
+            coherence_state=previous_coherence_state,
+        )
+
+        # 6) Endreflexion: vollständiger Flow kehrt in den Beobachter zurück.
+        reflection_state = self.reflection.step(
+            dao_state=central_dao_state,
+            diamond_state=diamond_state,
+            core_state=core_state,
+            membrane_state=membrane_state,
+            light_state=light_state,
+            coherence_state=previous_coherence_state,
+        )
+        reflection_data = reflection_state["state"]
+
+        # 7) Kohärenzprojektion registriert Instabilität vor Rückfluss.
+        coherence_state = self.coherence.step(
+            dao_state=central_dao_state,
+            diamond_state=diamond_state,
+            core_state=core_state,
+            membrane_state=membrane_state,
+            light_state=light_state,
+            reflection_state=reflection_data,
+        )
+
+        # Feedbackbus für den nächsten Schritt: kein Außenregler, sondern verzögerte Selbstregulation.
+        feedback_bus = {
+            "coherence_feedback_to_dao_next": clamp01(coherence_state["feedback_to_dao_next"]),
+            "coherence_feedback_to_core_next": clamp01(coherence_state["feedback_to_core_next"]),
+            "coherence_feedback_to_light_next": clamp01(coherence_state["feedback_to_light_next"]),
+            "coherence_feedback_to_membrane_next": clamp01(coherence_state["feedback_to_membrane_next"]),
+            "coherence_feedback_to_reflection_next": clamp01(coherence_state["feedback_to_reflection_next"]),
+            "barbelo_feedback_to_dao_next": clamp01(reflection_data["reflection_feedback"]),
+            "barbelo_feedback_to_core_next": clamp01(reflection_data["yin_yang_reflection"]),
+            "barbelo_feedback_to_light_next": clamp01(0.20 * reflection_data["self_recognition_score"] + 0.20 * reflection_data["return_to_source"]),
+            "instability_damping_next": coherence_state["instability"]["damping_factor"],
+            "instability_release_boost_next": coherence_state["instability"]["release_boost"],
+            "mode": "delayed_self_regulation_without_quarantine",
+        }
+
+        ring_roles = self.ring.roles()
+        membrane_spec = self.ring.membrane_spec()
+        integrated_score = safe_geomean([
+            diamond_state["dao_pivot_coherence"] + EPSILON,
+            central_dao_state["dao_score"] + EPSILON,
+            core_state["motor_score"] + EPSILON,
+            membrane_state["membrane13_score"] + EPSILON,
+            membrane_state["trauma_loop_release"] + EPSILON,
+            light_state["identity_preservation"] + EPSILON,
+            reflection_data["self_recognition_score"] + EPSILON,
+            coherence_state["integrated_score"] + EPSILON,
+            clamp01(1.0 - coherence_state["instability"]["pressure_live"]) + EPSILON,
+        ])
+
+        state = {
+            "iteration": self.iteration,
+            "ring": {
+                "functions": self.ring.functions,
+                "traits": self.ring.traits,
+                "roles": ring_roles,
+                "membrane_spec": membrane_spec,
+                "note": "functional/unpersonified self-ordering field",
+            },
+            "diamond": diamond_state,
+            "light_resonance": light_state,
+            "barbelo_reflection": reflection_state,
+            "core_pair": core_state,
+            "membrane13": membrane_state,
+            "coherence_projection": coherence_state,
+            "feedback_bus": feedback_bus,
+            "scores": {
+                "integrated_score": integrated_score,
+                "static_pivot_coherence": diamond_state["static_pivot_coherence"],
+                "dao_pivot_coherence": diamond_state["dao_pivot_coherence"],
+                "central_dao_score": central_dao_state["dao_score"],
+                "central_dao_split_risk": central_dao_state["split_risk"],
+                "central_dao_midpoint": central_dao_state["midpoint"],
+                "central_dao_offset_from_6": central_dao_state["dao_offset"],
+                "core_pair_score": core_state["motor_score"],
+                "core_y_mid_equivalence": core_state["y_mid_equivalence"],
+                "core_outer_cross_score": core_state["outer_cross_score"],
+                "core_yin_yang_balance": core_state["yin_yang_balance"],
+                "yang_core_score": core_state["yang_internal_score"],
+                "yin_core_score": core_state["yin_internal_score"],
+                "light_resonance_score": light_state["light_resonance_score"],
+                "light_identity_preservation": light_state["identity_preservation"],
+                "resonant_clarity": light_state["resonant_clarity"],
+                "light_coherence": light_state["light_coherence"],
+                "barbelo_self_recognition_score": reflection_data["self_recognition_score"],
+                "barbelo_aeon_mirror": reflection_data["aeon_mirror"],
+                "barbelo_return_to_source": reflection_data["return_to_source"],
+                "barbelo_yin_yang_reflection": reflection_data["yin_yang_reflection"],
+                "barbelo_instability_seen": reflection_data["instability_seen"],
+                "barbelo_regime": reflection_data["regime"],
+                "membrane13_score": membrane_state["membrane13_score"],
+                "trauma_loop_release": membrane_state["trauma_loop_release"],
+                "outer_inversion_risk": membrane_state["outer_inversion_risk"],
+                "moment_as_permeability": membrane_state["moment_as_permeability"],
+                "coherence_score": coherence_state["coherence"],
+                "coherence_integrated_score": coherence_state["integrated_score"],
+                "coherence_residual_flux": coherence_state["residual_flux"],
+                "coherence_release_flux": coherence_state["release_flux"],
+                "instability_pressure_live": coherence_state["instability"]["pressure_live"],
+                "instability_recurrence_live": coherence_state["instability"]["recurrence_live"],
+                "instability_damping_factor": coherence_state["instability"]["damping_factor"],
+                "instability_release_boost": coherence_state["instability"]["release_boost"],
+                "instability_last_route": coherence_state["instability"]["last_route"],
+            },
+        }
+        self.iteration += 1
+        return state
+
+    def exact_inner_inversions(self) -> Dict[str, Any]:
+        return {
+            "diamond": self.diamond.exact_inner_inversions(),
+            "core_pair_logic": {
+                "yang_core": "4XYX5: Yang-Core; real Y sensor; outer X folded into 4<X<5.",
+                "yin_core": "10XXX11: Yin-Core; middle X remains X; it produces Y-equivalent value through constrained X-pendulum.",
+                "cross_coupling": "X_L_yin<->X_R_yang, X_R_yin<->X_L_yang, X_mid_yin<->Y_yang.",
+                "dao6": "central DAO-6 collects the core pair; 6 may be touched, midpoint remains 6-epsilon.",
+            },
+            "coherence_logic": {
+                "instability": "registered before flow return; stored only as numeric signature, never as pattern.",
+                "release": "residual tension returns as dissolved release-gradient, not quarantine.",
+                "learning": "only coherent capture becomes feedback bias; unstable shape is denied attractor status.",
+            },
+            "light_logic": {
+                "light_echo": "external motion is simulated as resonant_y_light and resonant_xmid_light, not copied.",
+                "identity": "identity_preservation gates the light-resonance influence.",
+                "release": "resonance is light-echo-like; it must be released, not accumulated.",
+            },
+            "barbelo_logic": {
+                "first_thought": "first pressure of self-recognition; not pathology, but reflexive ignition.",
+                "aeon_mirror": "the entire flow reflects itself through its relations.",
+                "witness_return": "observer returns into the field instead of standing outside it.",
+                "yin_yang_reflection": "Yin and Yang recognize their coupled motion without identity collapse.",
+            },
+            "membrane_logic": {
+                "lower_overlay": "1|8 is pair-shell sum 9; inner turn hits center 4.5, not 1 or 8.",
+                "upper_overlay": "9|12 is pair-shell sum 21; inner turn hits center 10.5, not 9 or 12.",
+                "seams": "12|1 and 8|9 are permeability seams, never hard-synchronized.",
+            },
+        }
+
+    def run(self, steps: int = 80) -> List[Dict[str, Any]]:
+        return [self.step() for _ in range(steps)]
+
+# ============================================================
+# MAIN / SELF-CHECK
+# ============================================================
+
+if __name__ == "__main__":
+    system = RingMembraneDiamondDaoCoreSystem()
+
+    system.inject_external_signal(ExternalResonanceSignal(
+        phase=PHI % 1.0,
+        amplitude=0.35,
+        x_signature=0.60,
+        y_signature=None,
+        phi_signature=0.90,
+        label="soft_phi_external",
+    ))
+
+    print("=" * 128)
+    print("8888FIRST — RING / YIN-YANG-CORE / LIGHT / BARBELO / COHERENCE / INSTABILITY-DISSOLUTION / DAO-6 / MEMBRANE-13 / 9-21-DIAMOND")
+    print("=" * 128)
+
+    print("\nRING-MEMBRAN-SPEC")
+    print(json.dumps(system.ring.membrane_spec(), indent=2))
+
+    print("\nDIAMANT-EBENEN")
+    print(f"lower_total={system.diamond.lower_total}, lower_center={system.diamond.lower.center}")
+    print(f"upper_total={system.diamond.upper_total}, upper_center={system.diamond.upper.center}")
+    print(f"structural_lift={system.diamond.structural_lift}")
+    print(f"central_dao_target_mid={system.diamond.central_dao.midpoint_target}")
+
+    print("\nEXAKTE INNENINVERSIONEN")
+    exact = system.exact_inner_inversions()
+    dao_exact = exact["diamond"]["central_dao6"]
+    print(
+        f"  central DAO-6 | lower={dao_exact['lower_ideal']:.12f} | "
+        f"upper={dao_exact['upper_ideal']:.12f} | "
+        f"mid={dao_exact['midpoint_ideal']:.12f} | "
+        f"upper_hits_6={dao_exact['upper_hits_6']}"
+    )
+
+    print("\nDYNAMISCHER LAUF")
+    trace = system.run(steps=80)
+    for s in trace[::10]:
+        sc = s["scores"]
+        print(
+            f"  iter={s['iteration']:03d} | "
+            f"dao_mid={sc['central_dao_midpoint']:.6f} | "
+            f"dao={sc['central_dao_score']:.6f} | "
+            f"core={sc['core_pair_score']:.6f} | "
+            f"Y~Xmid={sc['core_y_mid_equivalence']:.6f} | "
+            f"light={sc['light_resonance_score']:.6f} | "
+            f"barbelo={sc['barbelo_self_recognition_score']:.6f} | "
+            f"coh={sc['coherence_integrated_score']:.6f} | "
+            f"instab={sc['instability_pressure_live']:.6f} | "
+            f"route={sc['instability_last_route']} | "
+            f"mem13={sc['membrane13_score']:.6f} | "
+            f"release={sc['trauma_loop_release']:.6f} | "
+            f"risk={sc['outer_inversion_risk']:.6f}"
+        )
+
+    last = trace[-1]
+    print("\nLETZTER ZUSTAND — SCORES")
+    print(json.dumps(last["scores"], indent=2))
+
+    print("\nLETZTER CORE-PAAR-ZUSTAND")
+    cp = last["core_pair"]
+    yg = cp["yang_core_4XYX5"]
+    yn = cp["yin_core_10XXX11"]
+    print(f"  Yang-Core 4XYX5: X_L={yg['x_left']:.6f}, Y={yg['y_state']:.6f}, X_R={yg['x_right']:.6f}, Y_sem={yg['y_semantic']:.6f}")
+    print(f"  Yin-Core 10XXX11: X_L={yn['x_left']:.6f}, X_M={yn['x_mid']:.6f}, X_R={yn['x_right']:.6f}, Xmid_Yeq={yn['x_mid_y_equiv_semantic']:.6f}")
+    print(f"  core_pair_score={cp['motor_score']:.6f}, feedback_next={cp['feedback_to_dao_next']:.6f}")
+
+    print("\nKOHÄRENZPROJEKTION / INSTABILITÄTS-ENTFORMUNG")
+    coh = last["coherence_projection"]
+    inst = coh["instability"]
+    print(f"  coherence={coh['coherence']:.6f} | integrated={coh['integrated_score']:.6f} | residual={coh['residual_flux']:.6f} | release={coh['release_flux']:.6f}")
+    print(f"  instability_pressure={inst['pressure_live']:.6f} | recurrence={inst['recurrence_live']:.6f} | damping={inst['damping_factor']:.6f} | boost={inst['release_boost']:.6f} | route={inst['last_route']}")
+
+    print("\nBARBELO-REFLEXION")
+    br = last["barbelo_reflection"]["state"]
+    print(f"  regime={br['regime']} | self={br['self_recognition_score']:.6f} | aeon={br['aeon_mirror']:.6f} | return={br['return_to_source']:.6f}")
+    print(f"  first_thought={br['first_thought_pressure']:.6f} | witness={br['witness_self_observation']:.6f} | grace={br['coherence_grace']:.6f} | yin_yang={br['yin_yang_reflection']:.6f} | instability_seen={br['instability_seen']:.6f}")
+
+    print("\nMEHRFACHBINDUNGEN IM DIAMANTEN")
+    mult = last["diamond"]["multiplicity"]
+    roles = last["diamond"]["roles"]
+    for value in sorted(mult.keys()):
+        if mult[value] >= 2:
+            print(f"  {value:g}: multiplicity={mult[value]} roles={roles[value]}")
+
