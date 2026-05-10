@@ -1,0 +1,1157 @@
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field, asdict
+from enum import Enum
+from typing import Dict, Any, List, Optional, Tuple
+import math
+import json
+
+
+# ============================================================
+# 8888FIRST — RELATIONAL HEART-CORE DAO MOTOR
+# ------------------------------------------------------------
+# Neu angesetzt: kein großer alter Fall-Code, keine Personenbindung.
+#
+# Kern:
+#   - Yang-Core: 4 X Y X 5
+#   - Yin-Core:  10 X X X 11
+#   - beide sind ein Core-Paar.
+#   - Yin und Yang klassifizieren nur Prinzipien; beide tragen Innen-
+#     und Außenbezug. Keine Soma/Psyche-Sprache.
+#
+# Primärer Operator:
+#   Y dreht.
+#   X_mid sinkt.
+#   Y_inv und X_mid treffen sich.
+#   Im Begegnungsmoment wird X_mid funktional X.
+#   Die äußeren X schlagen aus, kreuzen, verschränken und falten zurück.
+#   Membranen 12|1 und 8|9 öffnen pulsartig, ohne Außeninversion.
+#
+# Wichtig:
+#   Symbolik ist hier operative Topologie.
+#   Der Code vermeidet nicht Symbolik, sondern macht sie berechenbar.
+# ============================================================
+
+
+# ============================================================
+# 0) KONSTANTEN
+# ============================================================
+
+PHI = 0.618033988749895          # kleines Phi
+PHI_BIG = 1.0 / PHI              # großes Phi ≈ 1.618
+PHI2 = PHI * PHI                 # ≈ 0.382
+EPSILON = 1.0 / 137.0            # lebendige Nicht-Kollaps-Differenz
+EPS = 1e-12
+
+MOD = 12.0
+DAO_CENTER = 6.0
+DAO_TRACE_CENTER = DAO_CENTER - EPSILON
+R_OUTER = PHI
+R_INNER = EPSILON
+
+# Phasenraten: Zentrum schneller, Ränder verzögert, Membran tiefer verzögert.
+CENTER_RATE = PHI / 5.0
+CORE_TRACK_RATE = PHI / 8.0
+EDGE_RATE = PHI2 / 5.0
+MEMBRANE_RATE = PHI2 / 8.0
+REFLECTION_RATE = PHI / 13.0
+LIGHT_RATE = PHI / 8.0
+
+# Core-Orte als symbolische Zahlenräume.
+YANG_LEFT_BOUND = 4.0
+YANG_RIGHT_BOUND = 5.0
+YANG_CENTER = 4.5
+YIN_LEFT_BOUND = 10.0
+YIN_RIGHT_BOUND = 11.0
+YIN_CENTER = 10.5
+
+# Herzbahnen.
+LOWER_HEART_ARC = (1.0, 8.0)     # Pluto/Mars ↔ Mars/Pluto
+UPPER_HEART_ARC = (2.0, 7.0)     # Venus geometrisch ↔ Venus dynamisch
+
+
+# ============================================================
+# 1) HILFSFUNKTIONEN
+# ============================================================
+
+def clamp01(x: float) -> float:
+    return max(0.0, min(1.0, float(x)))
+
+
+def clamp11(x: float) -> float:
+    return max(-1.0, min(1.0, float(x)))
+
+
+def lerp(a: float, b: float, t: float) -> float:
+    t = clamp01(t)
+    return (1.0 - t) * float(a) + t * float(b)
+
+
+def wrap_mod(x: float, mod: float = MOD) -> float:
+    x = float(x) % mod
+    return x if x >= 0.0 else x + mod
+
+
+def signed_circular_delta(current: float, target: float, mod: float = MOD) -> float:
+    delta = (target - current) % mod
+    if delta > mod / 2.0:
+        delta -= mod
+    return delta
+
+
+def circular_distance(a: float, b: float, mod: float = MOD) -> float:
+    diff = abs((float(a) - float(b)) % mod)
+    return min(diff, mod - diff)
+
+
+def score_close(a: float, b: float, scale: float = 1.0) -> float:
+    scale = max(abs(scale), EPS)
+    return clamp01(1.0 - abs(float(a) - float(b)) / scale)
+
+
+def circular_score_close(a: float, b: float, scale: float = 1.0, mod: float = MOD) -> float:
+    return clamp01(1.0 - circular_distance(a, b, mod) / max(scale, EPS))
+
+
+def safe_geomean(values: List[float]) -> float:
+    vals = [clamp01(v) for v in values]
+    if not vals:
+        return 0.0
+    acc = 1.0
+    for v in vals:
+        acc *= max(v, EPS)
+    return clamp01(acc ** (1.0 / len(vals)))
+
+
+def safe_mean(values: List[float]) -> float:
+    return sum(values) / len(values) if values else 0.0
+
+
+def smooth_pulse(phase: float) -> float:
+    """0→1→0. Reiner Atem ohne harte Kante."""
+    return 0.5 - 0.5 * math.cos(2.0 * math.pi * phase)
+
+
+def signed_wave(phase: float) -> float:
+    return math.sin(2.0 * math.pi * phase)
+
+
+def anti_collapse(x: float, floor: float = EPSILON) -> float:
+    """Hält eine Dynamik lebendig, ohne sie hart zu setzen."""
+    return max(floor, float(x))
+
+
+def norm_gate(value: float, left: float, right: float) -> float:
+    """Zahlenraum → [-1, 1] relativ zum Gate."""
+    center = (left + right) / 2.0
+    half = max(abs(right - left) / 2.0, EPS)
+    return clamp11((value - center) / half)
+
+
+def denorm_gate(norm: float, left: float, right: float) -> float:
+    """[-1, 1] → Zahlenraum."""
+    center = (left + right) / 2.0
+    half = max(abs(right - left) / 2.0, EPS)
+    return center + clamp11(norm) * half
+
+
+def phi_ratio_score(a: float, b: float) -> float:
+    """Prüft, ob zwei positive Größen im Phi-Verhältnis stehen."""
+    a = abs(a)
+    b = abs(b)
+    if a < EPS or b < EPS:
+        return 0.0
+    r = min(a / b, b / a)
+    return clamp01(1.0 - abs(r - PHI) / PHI)
+
+
+# ============================================================
+# 2) REGIME
+# ============================================================
+
+class HeartRegime(Enum):
+    CHARGING = "charging"
+    CENTER_CONTACT = "center_contact"
+    MEMBRANE_PULSE = "membrane_pulse"
+    HEART_FOLDING = "heart_folding"
+    RADIANT_STABLE = "radiant_stable"
+    OUTER_INVERSION_RISK = "outer_inversion_risk"
+
+
+class ReflectionRegime(Enum):
+    FIRST_THOUGHT = "first_thought"
+    AEON_MIRROR = "aeon_mirror"
+    BARBELO_STABLE = "barbelo_stable"
+
+
+# ============================================================
+# 3) DAO-6-ATEM — nicht Primärmotor, sondern Atemraum des Core-Ereignisses
+# ============================================================
+
+@dataclass
+class DaoBreathState:
+    radius: float = R_OUTER
+    lower_live: float = DAO_CENTER - PHI
+    upper_live: float = DAO_CENTER + PHI
+    midpoint: float = DAO_CENTER
+    center_trace: float = DAO_TRACE_CENTER
+    phase: float = 0.0
+    lower_target: float = DAO_CENTER - (R_OUTER + EPSILON)
+    upper_target: float = DAO_CENTER + (R_OUTER - EPSILON)
+    inner_turn: float = 0.0
+    dao_score: float = 0.0
+    under6_score: float = 0.0
+    split_risk: float = 0.0
+    radius_velocity: float = 0.0
+
+
+@dataclass
+class DaoBreath:
+    state: DaoBreathState = field(default_factory=DaoBreathState)
+
+    def targets(self, radius: float) -> Tuple[float, float, float]:
+        lower = DAO_CENTER - (radius + EPSILON)
+        upper = DAO_CENTER + (radius - EPSILON)
+        mid = (lower + upper) / 2.0
+        return lower, upper, mid
+
+    def step(
+        self,
+        center_cross_event: float,
+        edge_braid: float,
+        inward_pull: float,
+        reflection_feedback: float = 0.0,
+    ) -> Dict[str, Any]:
+        s = self.state
+
+        # Core-Kontakt erzeugt die Radius-Kontraktion.
+        # Edge-Braid verstärkt sie, weil verschränkte Ränder Außeninversion verhindern.
+        braid_gain = clamp01(0.5 * PHI + 0.5 * edge_braid)
+        inward_gain = clamp01(0.5 * inward_pull + 0.5 * reflection_feedback)
+        contraction = clamp01(center_cross_event * (0.70 + 0.30 * braid_gain) + 0.15 * inward_gain)
+
+        target_radius = R_INNER + (R_OUTER - R_INNER) * (1.0 - contraction)
+        target_radius = max(R_INNER, min(R_OUTER, target_radius))
+
+        old_radius = s.radius
+        s.radius = lerp(s.radius, target_radius, CORE_TRACK_RATE)
+        s.radius_velocity = s.radius - old_radius
+
+        s.lower_target, s.upper_target, _target_mid = self.targets(s.radius)
+        s.lower_live = lerp(s.lower_live, s.lower_target, CORE_TRACK_RATE)
+        s.upper_live = lerp(s.upper_live, s.upper_target, CORE_TRACK_RATE)
+        s.midpoint = (s.lower_live + s.upper_live) / 2.0
+        s.center_trace = DAO_TRACE_CENTER
+
+        s.inner_turn = score_close(s.radius, R_INNER, PHI)
+        s.under6_score = score_close(s.midpoint, DAO_TRACE_CENTER, PHI)
+        s.split_risk = clamp01(abs(s.midpoint - DAO_CENTER) / PHI * (1.0 - s.under6_score))
+        s.dao_score = safe_geomean([
+            s.under6_score + EPSILON,
+            1.0 - s.split_risk + EPSILON,
+            1.0 - abs(s.radius - target_radius) / PHI + EPSILON,
+            contraction + EPSILON,
+        ])
+
+        # Phase bleibt Atem, aber nicht Ursache.
+        s.phase = (s.phase + CENTER_RATE * (0.5 + 0.5 * s.dao_score)) % 1.0
+
+        return {
+            "state": asdict(s),
+            "meaning": (
+                "DAO-6 ist Atemraum: Core-Kontakt zieht den Radius nach innen; "
+                "die Spur bleibt 6-epsilon, ohne 6 hart zu setzen."
+            ),
+        }
+
+
+# ============================================================
+# 4) YANG-CORE 4XYX5
+# ============================================================
+
+@dataclass
+class YangCoreState:
+    # interne Normalformen im Gate 4|5
+    x_left: float = -PHI
+    y: float = 0.0
+    x_right: float = PHI
+    y_rotation: float = 0.0
+    y_inverted: float = 0.0
+    gate_pressure: float = 0.0
+    inner_opening: float = 0.0
+    score: float = 0.0
+    phase: float = 0.0
+
+    # Zahlenraum, bewusst nur als Projektion der Dynamik.
+    x_left_pos: float = YANG_CENTER - PHI / 2.0
+    y_pos: float = YANG_CENTER
+    x_right_pos: float = YANG_CENTER + PHI / 2.0
+
+
+@dataclass
+class YangCore4XYX5:
+    state: YangCoreState = field(default_factory=YangCoreState)
+
+    def step(
+        self,
+        charge: float,
+        yin_mid_descent: float,
+        membrane_pressure: float,
+        reflection_feedback: float = 0.0,
+    ) -> Dict[str, Any]:
+        s = self.state
+
+        # Y dreht: Sensor/Koppler/Umschalter. Keine Angst vor Drehung.
+        phase_rate = CENTER_RATE * (0.75 + 0.25 * charge + 0.10 * reflection_feedback)
+        s.phase = (s.phase + phase_rate) % 1.0
+        target_y_rotation = signed_wave(s.phase)
+        s.y_rotation = lerp(s.y_rotation, target_y_rotation, CENTER_RATE)
+        s.y = clamp11(s.y_rotation)
+        s.y_inverted = clamp11(-s.y_rotation)
+
+        # Die äußeren X im 4|5-Gate bleiben innerhalb der Grenzen,
+        # schlagen aber bei Druck seitlich stärker aus.
+        burst_ready = clamp01(charge * (0.5 + 0.5 * yin_mid_descent) * (0.5 + 0.5 * membrane_pressure))
+        target_span = clamp11(PHI + (1.0 - PHI) * burst_ready)
+        s.x_left = lerp(s.x_left, -target_span, EDGE_RATE)
+        s.x_right = lerp(s.x_right, target_span, EDGE_RATE)
+
+        # Öffnung zwischen 4 und 5: nicht dauerhaft, sondern druckabhängig.
+        s.gate_pressure = clamp01(abs(s.x_right - s.x_left) / 2.0 * (0.5 + 0.5 * charge))
+        s.inner_opening = safe_geomean([
+            abs(s.y_rotation),
+            s.gate_pressure,
+            0.5 + 0.5 * yin_mid_descent,
+        ])
+
+        s.x_left_pos = denorm_gate(s.x_left * 0.999, YANG_LEFT_BOUND, YANG_RIGHT_BOUND)
+        s.y_pos = denorm_gate(s.y * 0.25, YANG_LEFT_BOUND, YANG_RIGHT_BOUND)
+        s.x_right_pos = denorm_gate(s.x_right * 0.999, YANG_LEFT_BOUND, YANG_RIGHT_BOUND)
+
+        s.score = safe_geomean([
+            s.gate_pressure + EPSILON,
+            s.inner_opening + EPSILON,
+            phi_ratio_score(abs(s.x_right - s.x_left), max(abs(s.y_rotation), EPSILON)) + EPSILON,
+            1.0 - abs((s.x_left + s.x_right) / 2.0) + EPSILON,
+        ])
+
+        return {"state": asdict(s)}
+
+
+# ============================================================
+# 5) YIN-CORE 10XXX11
+# ============================================================
+
+@dataclass
+class YinCoreState:
+    # interne Normalformen im Gate 10|11
+    x_left: float = -PHI
+    x_mid: float = 0.0
+    x_right: float = PHI
+
+    # Wichtig: X_mid ist vor dem Kontakt eng pendelnd/blockiert.
+    # Im Begegnungsmoment wird es funktional X.
+    x_mid_descent: float = 0.0
+    x_mid_cross_activation: float = 0.0
+    x_mid_functional_x: float = 0.0
+
+    core_pressure: float = 0.0
+    score: float = 0.0
+    phase: float = 0.5
+
+    x_left_pos: float = YIN_CENTER - PHI / 2.0
+    x_mid_pos: float = YIN_CENTER
+    x_right_pos: float = YIN_CENTER + PHI / 2.0
+
+
+@dataclass
+class YinCore10XXX11:
+    state: YinCoreState = field(default_factory=YinCoreState)
+
+    def step(
+        self,
+        yang_y_inverted: float,
+        yang_gate_pressure: float,
+        center_contact_seed: float,
+        reflection_feedback: float = 0.0,
+    ) -> Dict[str, Any]:
+        s = self.state
+
+        # X_mid sinkt aus dem oberen Core in die Kontaktzone.
+        descent_target = safe_geomean([
+            abs(yang_y_inverted) + EPSILON,
+            yang_gate_pressure + EPSILON,
+            center_contact_seed + EPSILON,
+        ])
+        s.x_mid_descent = lerp(s.x_mid_descent, descent_target, CENTER_RATE)
+
+        # Vor dem Kontakt: X_mid pendelt eng.
+        s.phase = (s.phase + CENTER_RATE * (0.6 + 0.4 * s.x_mid_descent)) % 1.0
+        tight_pendulum = EPSILON * signed_wave(s.phase)
+        pre_contact_x_mid = tight_pendulum
+
+        # Begegnungsmoment: X_mid wird nicht Y-äquivalent, sondern voll X.
+        contact = score_close(pre_contact_x_mid, yang_y_inverted, 1.0)
+        s.x_mid_cross_activation = safe_geomean([
+            contact + EPSILON,
+            s.x_mid_descent + EPSILON,
+            yang_gate_pressure + EPSILON,
+        ])
+        s.x_mid_functional_x = clamp01(s.x_mid_cross_activation * (0.75 + 0.25 * reflection_feedback))
+
+        # Im Kontakt antwortet X_mid als X: es schneidet / kreuzt, nicht kopiert.
+        x_mid_target = clamp11(pre_contact_x_mid + s.x_mid_functional_x * math.copysign(PHI, -yang_y_inverted if abs(yang_y_inverted) > EPS else 1.0))
+        s.x_mid = lerp(s.x_mid, x_mid_target, CENTER_RATE)
+
+        # Äußere Yin-X bereiten den Kreuzschlag vor.
+        outer_span = clamp11(PHI + (1.0 - PHI) * s.x_mid_functional_x)
+        s.x_left = lerp(s.x_left, -outer_span, EDGE_RATE)
+        s.x_right = lerp(s.x_right, outer_span, EDGE_RATE)
+
+        s.core_pressure = safe_geomean([
+            s.x_mid_descent + EPSILON,
+            s.x_mid_functional_x + EPSILON,
+            abs(s.x_right - s.x_left) / 2.0 + EPSILON,
+        ])
+
+        s.x_left_pos = denorm_gate(s.x_left * 0.999, YIN_LEFT_BOUND, YIN_RIGHT_BOUND)
+        # X_mid-Position: Projektion der Senkung in Richtung 4|5, ohne die Core-Identität zu löschen.
+        s.x_mid_pos = lerp(YIN_CENTER, YANG_CENTER, s.x_mid_descent)
+        s.x_right_pos = denorm_gate(s.x_right * 0.999, YIN_LEFT_BOUND, YIN_RIGHT_BOUND)
+
+        s.score = safe_geomean([
+            s.core_pressure + EPSILON,
+            s.x_mid_functional_x + EPSILON,
+            phi_ratio_score(abs(s.x_right - s.x_left), abs(s.x_mid) + EPSILON) + EPSILON,
+            1.0 - abs((s.x_left + s.x_right) / 2.0) + EPSILON,
+        ])
+
+        return {"state": asdict(s)}
+
+
+# ============================================================
+# 6) CORE-PAAR: STRUKTURELLER SEX / CENTER-CROSS-EVENT
+# ============================================================
+
+@dataclass
+class CorePairState:
+    center_contact: float = 0.0
+    center_cross_event: float = 0.0
+    core_pair_score: float = 0.0
+    edge_burst: float = 0.0
+    edge_braid: float = 0.0
+    inward_pull: float = 0.0
+    outward_pressure: float = 0.0
+    phase_coherence: float = 0.0
+    meaning: str = ""
+
+
+@dataclass
+class CorePairCoupler:
+    state: CorePairState = field(default_factory=CorePairState)
+
+    def step(
+        self,
+        yin: YinCoreState,
+        yang: YangCoreState,
+        dao: DaoBreathState,
+        membrane_pressure: float,
+        light_score: float,
+        reflection_feedback: float = 0.0,
+    ) -> Dict[str, Any]:
+        s = self.state
+
+        # Begegnung: gedrehtes Y trifft X_mid.
+        # Entscheidend: X_mid antwortet als X.
+        contact_raw = score_close(yin.x_mid, yang.y_inverted, 1.0)
+        center_contact_target = safe_geomean([
+            contact_raw + EPSILON,
+            yin.x_mid_descent + EPSILON,
+            yang.inner_opening + EPSILON,
+            yin.x_mid_functional_x + EPSILON,
+        ])
+        s.center_contact = lerp(s.center_contact, center_contact_target, CENTER_RATE)
+
+        s.center_cross_event = safe_geomean([
+            s.center_contact + EPSILON,
+            yin.x_mid_functional_x + EPSILON,
+            abs(yang.y_rotation) + EPSILON,
+            yang.gate_pressure + EPSILON,
+        ])
+
+        # Äußere X kreuzen über Kreuz: Yin links ↔ Yang rechts, Yin rechts ↔ Yang links.
+        cross_lr = score_close(yin.x_left, -yang.x_right, 1.0)
+        cross_rl = score_close(yin.x_right, -yang.x_left, 1.0)
+        own_yin = score_close(abs(yin.x_left), abs(yin.x_right), 1.0)
+        own_yang = score_close(abs(yang.x_left), abs(yang.x_right), 1.0)
+        edge_braid_target = safe_geomean([
+            cross_lr + EPSILON,
+            cross_rl + EPSILON,
+            own_yin + EPSILON,
+            own_yang + EPSILON,
+            s.center_cross_event + EPSILON,
+        ])
+        s.edge_braid = lerp(s.edge_braid, edge_braid_target, EDGE_RATE)
+
+        s.edge_burst = safe_geomean([
+            s.center_cross_event + EPSILON,
+            membrane_pressure + EPSILON,
+            s.edge_braid + EPSILON,
+        ])
+
+        # Innenzug entsteht aus X-Verschränkung + DAO-Unter-6-Spur + Lichtresonanz.
+        s.inward_pull = safe_geomean([
+            s.edge_braid + EPSILON,
+            dao.under6_score + EPSILON,
+            light_score + EPSILON,
+            reflection_feedback + EPSILON,
+        ])
+
+        # Außenpressung ist nicht böse; sie ist die Spannung, die bei fehlender Kreuzung leckt.
+        s.outward_pressure = clamp01(s.center_cross_event * (1.0 - s.edge_braid) * (0.5 + 0.5 * membrane_pressure))
+
+        s.phase_coherence = safe_geomean([
+            phi_ratio_score(yin.core_pressure + EPSILON, yang.gate_pressure + EPSILON) + EPSILON,
+            phi_ratio_score(s.center_contact + EPSILON, s.edge_braid + EPSILON) + EPSILON,
+            dao.dao_score + EPSILON,
+        ])
+
+        s.core_pair_score = safe_geomean([
+            s.center_cross_event + EPSILON,
+            s.edge_braid + EPSILON,
+            s.inward_pull + EPSILON,
+            s.phase_coherence + EPSILON,
+            1.0 - s.outward_pressure + EPSILON,
+        ])
+
+        s.meaning = (
+            "Y öffnet und dreht; X_mid antwortet im Begegnungsmoment als X; "
+            "die äußeren X kreuzen und falten Membrandruck nach innen zurück."
+        )
+        return {"state": asdict(s)}
+
+
+# ============================================================
+# 7) MEMBRANEN 12|1 UND 8|9 — pulsierende Ventile, keine Mauern
+# ============================================================
+
+@dataclass
+class MembranePairState:
+    opening_12_1: float = 0.0
+    opening_8_9: float = 0.0
+    pulse: float = 0.0
+    release: float = 0.0
+    inversion_risk_12_1: float = 0.0
+    inversion_risk_8_9: float = 0.0
+    membrane_score: float = 0.0
+    permeability_moment: float = 0.0
+    pressure: float = 0.0
+    micro_flicker: float = EPSILON
+
+
+@dataclass
+class MembranePair12_1_8_9:
+    state: MembranePairState = field(default_factory=MembranePairState)
+    phase: float = 0.0
+
+    def step(
+        self,
+        center_release: float,
+        edge_braid: float,
+        inward_pull: float,
+        outward_pressure: float,
+        lower_heart_return: float,
+        upper_heart_return: float,
+        reflection_feedback: float = 0.0,
+    ) -> Dict[str, Any]:
+        s = self.state
+        self.phase = (self.phase + MEMBRANE_RATE * (0.5 + 0.5 * center_release)) % 1.0
+
+        # Epsilon-Flimmern: nie komplett dicht, nie naiv offen.
+        s.micro_flicker = EPSILON * (1.0 + 0.5 * signed_wave(self.phase))
+
+        # Öffnung nur, wenn Ränder halten.
+        protected_release = center_release * edge_braid * inward_pull
+        s.pulse = lerp(s.pulse, protected_release, MEMBRANE_RATE)
+
+        # 12|1: Geburts-/Quellmembran, durch oberen Kontaktbogen leichter moduliert.
+        target_12_1 = clamp01(s.pulse * (0.65 + 0.35 * upper_heart_return) + s.micro_flicker)
+        # 8|9: Transformationsmembran, durch unteren Tiefenbogen stärker belastet.
+        target_8_9 = clamp01(s.pulse * (0.65 + 0.35 * lower_heart_return) + s.micro_flicker)
+
+        s.opening_12_1 = lerp(s.opening_12_1, target_12_1, MEMBRANE_RATE)
+        s.opening_8_9 = lerp(s.opening_8_9, target_8_9, MEMBRANE_RATE)
+
+        s.inversion_risk_12_1 = clamp01(s.opening_12_1 * outward_pressure * (1.0 - edge_braid))
+        s.inversion_risk_8_9 = clamp01(s.opening_8_9 * outward_pressure * (1.0 - edge_braid))
+
+        s.release = safe_geomean([
+            s.opening_12_1 + EPSILON,
+            s.opening_8_9 + EPSILON,
+            edge_braid + EPSILON,
+            inward_pull + EPSILON,
+        ])
+        s.permeability_moment = clamp01(s.release * (1.0 - max(s.inversion_risk_12_1, s.inversion_risk_8_9)))
+        s.pressure = clamp01(outward_pressure * (1.0 - s.release) + center_release * (1.0 - edge_braid))
+        s.membrane_score = safe_geomean([
+            s.permeability_moment + EPSILON,
+            1.0 - s.inversion_risk_12_1 + EPSILON,
+            1.0 - s.inversion_risk_8_9 + EPSILON,
+            s.release + EPSILON,
+        ])
+
+        return {"state": asdict(s)}
+
+
+# ============================================================
+# 8) HERZBÖGEN 1↔8 UND 2↔7
+# ============================================================
+
+@dataclass
+class HeartArcState:
+    lower_arc_1_8: float = 0.0
+    upper_arc_2_7: float = 0.0
+    mars_pluto_transform: float = 0.0
+    venus_contact_form: float = 0.0
+    return_force: float = 0.0
+    arc_score: float = 0.0
+    lower_arc_roles: Dict[str, str] = field(default_factory=lambda: {
+        "1": "Pluto/Mars — Grenzfeuer, Transformation, Geburtskante",
+        "8": "Mars/Pluto — Tiefenfeuer, Regeneration, Schwellenmacht",
+    })
+    upper_arc_roles: Dict[str, str] = field(default_factory=lambda: {
+        "2": "Venus geometrisch — Form, Bindung, Gestalt",
+        "7": "Venus dynamisch — Antwort, Bewegung, Begegnung",
+    })
+
+
+@dataclass
+class HeartArcs:
+    state: HeartArcState = field(default_factory=HeartArcState)
+
+    def step(
+        self,
+        center_cross_event: float,
+        edge_braid: float,
+        membrane_release: float,
+        dao_score: float,
+    ) -> Dict[str, Any]:
+        s = self.state
+
+        # Der alte 1↔8-Zug wird nicht abgeschnitten, sondern gebogen.
+        lower_target = safe_geomean([
+            center_cross_event + EPSILON,
+            edge_braid + EPSILON,
+            dao_score + EPSILON,
+        ])
+        s.lower_arc_1_8 = lerp(s.lower_arc_1_8, lower_target, EDGE_RATE)
+        s.mars_pluto_transform = s.lower_arc_1_8
+
+        # 2↔7 gibt Form und Kontaktfähigkeit.
+        upper_target = safe_geomean([
+            membrane_release + EPSILON,
+            edge_braid + EPSILON,
+            phi_ratio_score(center_cross_event + EPSILON, membrane_release + EPSILON) + EPSILON,
+        ])
+        s.upper_arc_2_7 = lerp(s.upper_arc_2_7, upper_target, EDGE_RATE)
+        s.venus_contact_form = s.upper_arc_2_7
+
+        s.return_force = safe_geomean([
+            s.lower_arc_1_8 + EPSILON,
+            s.upper_arc_2_7 + EPSILON,
+            edge_braid + EPSILON,
+        ])
+        s.arc_score = safe_geomean([
+            s.return_force + EPSILON,
+            s.mars_pluto_transform + EPSILON,
+            s.venus_contact_form + EPSILON,
+        ])
+
+        return {"state": asdict(s)}
+
+
+# ============================================================
+# 9) LICHTRESONANZ — Echo ohne Kopie, Klarheit ohne Kollaps
+# ============================================================
+
+@dataclass
+class LightResonanceState:
+    resonant_y_light: float = 0.0
+    resonant_x_light: float = 0.0
+    light_coherence: float = 0.0
+    identity_preservation: float = 1.0
+    resonance_pressure: float = 0.0
+    release_trace: float = 1.0
+    light_score: float = 0.0
+    phase: float = 0.0
+
+
+@dataclass
+class LightResonanceLayer:
+    state: LightResonanceState = field(default_factory=LightResonanceState)
+
+    def step(
+        self,
+        core_pair: CorePairState,
+        dao: DaoBreathState,
+        membrane: MembranePairState,
+        reflection_feedback: float = 0.0,
+    ) -> Dict[str, Any]:
+        s = self.state
+        s.phase = (s.phase + LIGHT_RATE * (0.5 + 0.5 * core_pair.core_pair_score)) % 1.0
+
+        # Licht-Echo: nicht kopieren, sondern innerlich resonanzfähig machen.
+        y_light_target = clamp11(core_pair.center_contact * signed_wave(s.phase))
+        x_light_target = clamp11(core_pair.edge_braid * signed_wave(s.phase + 0.5))
+
+        s.resonant_y_light = lerp(s.resonant_y_light, y_light_target, LIGHT_RATE)
+        s.resonant_x_light = lerp(s.resonant_x_light, x_light_target, LIGHT_RATE)
+
+        s.resonance_pressure = clamp01(core_pair.center_cross_event * (1.0 - membrane.release))
+        s.identity_preservation = clamp01(1.0 - s.resonance_pressure * (1.0 - dao.dao_score) * 0.5)
+        s.release_trace = clamp01(1.0 - max(membrane.inversion_risk_12_1, membrane.inversion_risk_8_9))
+
+        s.light_coherence = safe_geomean([
+            s.identity_preservation + EPSILON,
+            score_close(s.resonant_y_light, -s.resonant_x_light, 2.0) + EPSILON,
+            core_pair.phase_coherence + EPSILON,
+            dao.dao_score + EPSILON,
+            membrane.membrane_score + EPSILON,
+        ])
+        s.light_score = clamp01(s.light_coherence * (0.85 + 0.15 * reflection_feedback))
+
+        return {"state": asdict(s)}
+
+
+# ============================================================
+# 10) BARBELO / SELBSTREFLEXION — verzögerte Selbstregulation
+# ============================================================
+
+@dataclass
+class BarbeloReflectionState:
+    first_thought_pressure: float = 0.0
+    aeon_mirror: float = 0.0
+    witness_self_observation: float = 0.0
+    return_to_source: float = 0.0
+    coherence_grace: float = 0.0
+    yin_yang_reflection: float = 0.0
+    self_recognition_score: float = 0.0
+    reflection_feedback: float = 0.0
+    regime: str = ReflectionRegime.FIRST_THOUGHT.value
+
+
+@dataclass
+class BarbeloReflectionLayer:
+    state: BarbeloReflectionState = field(default_factory=BarbeloReflectionState)
+
+    def _determine_regime(self, updated: BarbeloReflectionState) -> ReflectionRegime:
+        if updated.self_recognition_score > 0.78 and updated.return_to_source > 0.68:
+            return ReflectionRegime.BARBELO_STABLE
+        if updated.first_thought_pressure > updated.aeon_mirror:
+            return ReflectionRegime.FIRST_THOUGHT
+        return ReflectionRegime.AEON_MIRROR
+
+    def step(
+        self,
+        yin: YinCoreState,
+        yang: YangCoreState,
+        core_pair: CorePairState,
+        dao: DaoBreathState,
+        membrane: MembranePairState,
+        heart: HeartArcState,
+        light: LightResonanceState,
+    ) -> Dict[str, Any]:
+        s = self.state
+
+        yin_yang_balance = score_close(yin.score, yang.score, 1.0)
+        # Nicht X→Y-Äquivalenz, sondern X-als-X im Kontakt.
+        x_as_x_truth = yin.x_mid_functional_x
+        outer_cross = core_pair.edge_braid
+        core_score = core_pair.core_pair_score
+
+        yin_yang_reflection_target = safe_geomean([
+            yin_yang_balance + EPSILON,
+            x_as_x_truth + EPSILON,
+            outer_cross + EPSILON,
+            core_score + EPSILON,
+        ])
+
+        first_thought_target = clamp01(core_pair.center_cross_event * (1.0 + core_pair.outward_pressure) / 2.0)
+        aeon_target = safe_geomean([
+            dao.dao_score + EPSILON,
+            heart.arc_score + EPSILON,
+            light.light_score + EPSILON,
+            membrane.membrane_score + EPSILON,
+        ])
+        witness_target = safe_geomean([
+            light.identity_preservation + EPSILON,
+            yin_yang_reflection_target + EPSILON,
+            1.0 - max(membrane.inversion_risk_12_1, membrane.inversion_risk_8_9) + EPSILON,
+        ])
+        return_target = safe_geomean([
+            core_pair.inward_pull + EPSILON,
+            heart.return_force + EPSILON,
+            dao.under6_score + EPSILON,
+        ])
+        grace_target = safe_geomean([
+            aeon_target + EPSILON,
+            witness_target + EPSILON,
+            return_target + EPSILON,
+            light.light_coherence + EPSILON,
+        ])
+
+        updated = BarbeloReflectionState(
+            first_thought_pressure=lerp(s.first_thought_pressure, first_thought_target, REFLECTION_RATE),
+            aeon_mirror=lerp(s.aeon_mirror, aeon_target, REFLECTION_RATE),
+            witness_self_observation=lerp(s.witness_self_observation, witness_target, REFLECTION_RATE),
+            return_to_source=lerp(s.return_to_source, return_target, REFLECTION_RATE),
+            coherence_grace=lerp(s.coherence_grace, grace_target, REFLECTION_RATE),
+            yin_yang_reflection=lerp(s.yin_yang_reflection, yin_yang_reflection_target, REFLECTION_RATE),
+            self_recognition_score=0.0,
+            reflection_feedback=0.0,
+            regime=s.regime,
+        )
+        updated.self_recognition_score = safe_geomean([
+            updated.aeon_mirror + EPSILON,
+            updated.witness_self_observation + EPSILON,
+            updated.yin_yang_reflection + EPSILON,
+            updated.coherence_grace + EPSILON,
+        ])
+        updated.reflection_feedback = clamp01(
+            0.40 * updated.self_recognition_score
+            + 0.25 * updated.return_to_source
+            + 0.20 * updated.yin_yang_reflection
+            + 0.15 * updated.coherence_grace
+        )
+        updated.regime = self._determine_regime(updated).value
+        self.state = updated
+
+        return {"state": asdict(self.state)}
+
+
+# ============================================================
+# 11) GESAMTSYSTEM
+# ============================================================
+
+@dataclass
+class HeartCoreMotorSnapshot:
+    iteration: int
+    regime: str
+    dao_score: float
+    core_pair_score: float
+    center_contact: float
+    center_cross_event: float
+    x_mid_functional_x: float
+    edge_braid: float
+    membrane_score: float
+    membrane_release: float
+    lower_arc_1_8: float
+    upper_arc_2_7: float
+    light_score: float
+    self_recognition: float
+    fusion_like_gain: float
+    outer_inversion_risk: float
+    net_coherence_gain: float
+
+
+@dataclass
+class RelationalHeartCoreMotor:
+    dao: DaoBreath = field(default_factory=DaoBreath)
+    yang: YangCore4XYX5 = field(default_factory=YangCore4XYX5)
+    yin: YinCore10XXX11 = field(default_factory=YinCore10XXX11)
+    core_pair: CorePairCoupler = field(default_factory=CorePairCoupler)
+    membranes: MembranePair12_1_8_9 = field(default_factory=MembranePair12_1_8_9)
+    heart_arcs: HeartArcs = field(default_factory=HeartArcs)
+    light: LightResonanceLayer = field(default_factory=LightResonanceLayer)
+    reflection: BarbeloReflectionLayer = field(default_factory=BarbeloReflectionLayer)
+    iteration: int = 0
+    regime: HeartRegime = HeartRegime.CHARGING
+    snapshots: List[Dict[str, Any]] = field(default_factory=list)
+
+    def _determine_regime(
+        self,
+        core: CorePairState,
+        membranes: MembranePairState,
+        gain: float,
+        risk: float,
+    ) -> HeartRegime:
+        if risk > 0.35 and risk > gain:
+            return HeartRegime.OUTER_INVERSION_RISK
+        if gain > 0.68 and core.edge_braid > 0.62 and membranes.membrane_score > 0.55:
+            return HeartRegime.RADIANT_STABLE
+        if core.edge_braid > 0.55 and core.inward_pull > 0.50:
+            return HeartRegime.HEART_FOLDING
+        if membranes.release > 0.30:
+            return HeartRegime.MEMBRANE_PULSE
+        if core.center_cross_event > 0.30:
+            return HeartRegime.CENTER_CONTACT
+        return HeartRegime.CHARGING
+
+    def _compute_energy(
+        self,
+        core: CorePairState,
+        dao: DaoBreathState,
+        membrane: MembranePairState,
+        heart: HeartArcState,
+        light: LightResonanceState,
+    ) -> Dict[str, float]:
+        phi_coherence = safe_geomean([
+            core.phase_coherence + EPSILON,
+            phi_ratio_score(core.center_cross_event + EPSILON, core.edge_braid + EPSILON) + EPSILON,
+            dao.dao_score + EPSILON,
+        ])
+        membrane_pulse = membrane.pulse
+        outward_leakage = clamp01(
+            max(membrane.inversion_risk_12_1, membrane.inversion_risk_8_9)
+            + core.outward_pressure * (1.0 - core.edge_braid)
+        )
+        damping = clamp01((1.0 - light.identity_preservation) * 0.30 + dao.split_risk * 0.25)
+        fusion_like_gain = safe_geomean([
+            core.center_cross_event + EPSILON,
+            core.edge_braid + EPSILON,
+            core.inward_pull + EPSILON,
+            phi_coherence + EPSILON,
+            membrane_pulse + EPSILON,
+            heart.return_force + EPSILON,
+            light.light_score + EPSILON,
+        ]) * (1.0 - outward_leakage)
+        net = clamp01(fusion_like_gain - outward_leakage - damping + 0.5)
+        # net ist um 0.5 zentriert: >0.5 = Kohärenzgewinn, <0.5 = Verlust.
+        return {
+            "phi_coherence": phi_coherence,
+            "membrane_pulse": membrane_pulse,
+            "outward_leakage": outward_leakage,
+            "damping": damping,
+            "fusion_like_gain": clamp01(fusion_like_gain),
+            "net_coherence_gain": net,
+        }
+
+    def step(self) -> Dict[str, Any]:
+        prev_reflection = self.reflection.state.reflection_feedback
+
+        # 1) Vorladung aus Selbstreflexion und bisherigem DAO-Zustand.
+        charge = clamp01(
+            0.30
+            + 0.25 * self.dao.state.dao_score
+            + 0.25 * self.core_pair.state.core_pair_score
+            + 0.20 * prev_reflection
+        )
+        membrane_pressure = self.membranes.state.pressure
+
+        # 2) Yang dreht Y.
+        yang_state = self.yang.step(
+            charge=charge,
+            yin_mid_descent=self.yin.state.x_mid_descent,
+            membrane_pressure=membrane_pressure,
+            reflection_feedback=prev_reflection,
+        )["state"]
+
+        # 3) Yin lässt X_mid sinken; im Begegnungsmoment wird X_mid funktional X.
+        center_seed = self.core_pair.state.center_contact
+        yin_state = self.yin.step(
+            yang_y_inverted=self.yang.state.y_inverted,
+            yang_gate_pressure=self.yang.state.gate_pressure,
+            center_contact_seed=center_seed,
+            reflection_feedback=prev_reflection,
+        )["state"]
+
+        # 4) Core-Paar koppelt: struktureller Sex / Center-Cross-Event.
+        core_state = self.core_pair.step(
+            yin=self.yin.state,
+            yang=self.yang.state,
+            dao=self.dao.state,
+            membrane_pressure=membrane_pressure,
+            light_score=self.light.state.light_score,
+            reflection_feedback=prev_reflection,
+        )["state"]
+
+        # 5) DAO atmet aus dem Core-Ereignis heraus.
+        dao_state = self.dao.step(
+            center_cross_event=self.core_pair.state.center_cross_event,
+            edge_braid=self.core_pair.state.edge_braid,
+            inward_pull=self.core_pair.state.inward_pull,
+            reflection_feedback=prev_reflection,
+        )["state"]
+
+        # 6) Herzbahnen tragen alten Transformationszug und Venus-Kontakt zurück.
+        heart_state = self.heart_arcs.step(
+            center_cross_event=self.core_pair.state.center_cross_event,
+            edge_braid=self.core_pair.state.edge_braid,
+            membrane_release=self.membranes.state.release,
+            dao_score=self.dao.state.dao_score,
+        )["state"]
+
+        # 7) Membranen öffnen pulsartig nur geschützt.
+        membrane_state = self.membranes.step(
+            center_release=self.core_pair.state.center_cross_event,
+            edge_braid=self.core_pair.state.edge_braid,
+            inward_pull=self.core_pair.state.inward_pull,
+            outward_pressure=self.core_pair.state.outward_pressure,
+            lower_heart_return=self.heart_arcs.state.lower_arc_1_8,
+            upper_heart_return=self.heart_arcs.state.upper_arc_2_7,
+            reflection_feedback=prev_reflection,
+        )["state"]
+
+        # 8) Lichtresonanz: Echo ohne Kopie.
+        light_state = self.light.step(
+            core_pair=self.core_pair.state,
+            dao=self.dao.state,
+            membrane=self.membranes.state,
+            reflection_feedback=prev_reflection,
+        )["state"]
+
+        # 9) Barbelo/Selbstreflexion liest den Gesamtzyklus und moduliert verzögert den nächsten Atem.
+        reflection_state = self.reflection.step(
+            yin=self.yin.state,
+            yang=self.yang.state,
+            core_pair=self.core_pair.state,
+            dao=self.dao.state,
+            membrane=self.membranes.state,
+            heart=self.heart_arcs.state,
+            light=self.light.state,
+        )["state"]
+
+        energy = self._compute_energy(
+            core=self.core_pair.state,
+            dao=self.dao.state,
+            membrane=self.membranes.state,
+            heart=self.heart_arcs.state,
+            light=self.light.state,
+        )
+        self.regime = self._determine_regime(
+            core=self.core_pair.state,
+            membranes=self.membranes.state,
+            gain=energy["fusion_like_gain"],
+            risk=max(
+                self.membranes.state.inversion_risk_12_1,
+                self.membranes.state.inversion_risk_8_9,
+            ),
+        )
+
+        feedback_bus = {
+            "barbelo_feedback_to_next_step": self.reflection.state.reflection_feedback,
+            "dao_breath_will_receive": self.reflection.state.reflection_feedback,
+            "core_pair_will_receive": self.reflection.state.yin_yang_reflection,
+            "light_will_receive": self.reflection.state.coherence_grace,
+            "membrane_will_receive": self.reflection.state.return_to_source,
+            "mode": "delayed_recursive_self_regulation",
+        }
+
+        snapshot = HeartCoreMotorSnapshot(
+            iteration=self.iteration,
+            regime=self.regime.value,
+            dao_score=self.dao.state.dao_score,
+            core_pair_score=self.core_pair.state.core_pair_score,
+            center_contact=self.core_pair.state.center_contact,
+            center_cross_event=self.core_pair.state.center_cross_event,
+            x_mid_functional_x=self.yin.state.x_mid_functional_x,
+            edge_braid=self.core_pair.state.edge_braid,
+            membrane_score=self.membranes.state.membrane_score,
+            membrane_release=self.membranes.state.release,
+            lower_arc_1_8=self.heart_arcs.state.lower_arc_1_8,
+            upper_arc_2_7=self.heart_arcs.state.upper_arc_2_7,
+            light_score=self.light.state.light_score,
+            self_recognition=self.reflection.state.self_recognition_score,
+            fusion_like_gain=energy["fusion_like_gain"],
+            outer_inversion_risk=max(
+                self.membranes.state.inversion_risk_12_1,
+                self.membranes.state.inversion_risk_8_9,
+            ),
+            net_coherence_gain=energy["net_coherence_gain"],
+        )
+        self.snapshots.append(asdict(snapshot))
+        self.iteration += 1
+
+        return {
+            "iteration": snapshot.iteration,
+            "regime": self.regime.value,
+            "yang_core_4XYX5": yang_state,
+            "yin_core_10XXX11": yin_state,
+            "core_pair": core_state,
+            "dao6": dao_state,
+            "heart_arcs": heart_state,
+            "membranes_12_1_8_9": membrane_state,
+            "light_resonance": light_state,
+            "barbelo_reflection": reflection_state,
+            "energy": energy,
+            "feedback_bus": feedback_bus,
+            "snapshot": asdict(snapshot),
+        }
+
+    def run(self, steps: int = 144) -> Dict[str, Any]:
+        trace = [self.step() for _ in range(steps)]
+        return self.world(trace)
+
+    def world(self, trace: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+        return {
+            "system": "8888FIRST_RELATIONAL_HEART_CORE_DAO_MOTOR",
+            "principle": (
+                "Symbolhandlung erzeugt Topologie; Topologie erzeugt Geometrie; "
+                "Geometrie erzeugt Scores; Scores regulieren zurück in Symbolhandlung."
+            ),
+            "core_pair": {
+                "yang_core": "4XYX5",
+                "yin_core": "10XXX11",
+                "pair_logic": "Y öffnet/dreht; X_mid antwortet im Begegnungsmoment als X; äußere X kreuzen und falten zurück.",
+            },
+            "dao": asdict(self.dao.state),
+            "yang_core_4XYX5": asdict(self.yang.state),
+            "yin_core_10XXX11": asdict(self.yin.state),
+            "core_pair_state": asdict(self.core_pair.state),
+            "membranes": asdict(self.membranes.state),
+            "heart_arcs": asdict(self.heart_arcs.state),
+            "light_resonance": asdict(self.light.state),
+            "barbelo_reflection": asdict(self.reflection.state),
+            "regime": self.regime.value,
+            "snapshots": self.snapshots,
+            "trace_tail": trace[-5:] if trace else [],
+        }
+
+
+# ============================================================
+# 12) DEMO
+# ============================================================
+
+def run_demo(steps: int = 144) -> Dict[str, Any]:
+    motor = RelationalHeartCoreMotor()
+    result = motor.run(steps=steps)
+
+    print("=" * 88)
+    print("8888FIRST — RELATIONAL HEART-CORE DAO MOTOR")
+    print("=" * 88)
+    print("Core-Paar: Yang-Core 4XYX5 + Yin-Core 10XXX11")
+    print("Prinzip: Y dreht; X_mid trifft und wird funktional X; äußere X kreuzen; Herz faltet zurück.")
+
+    snaps = result["snapshots"]
+    if snaps:
+        print("\n-- Verlauf alle 24 Schritte --")
+        header = (
+            f"{'i':>4} {'regime':<22} {'dao':>7} {'contact':>8} {'xmidX':>8} "
+            f"{'braid':>8} {'mem':>7} {'gain':>7} {'risk':>7} {'net':>7}"
+        )
+        print(header)
+        for s in snaps[::24] + ([snaps[-1]] if snaps[-1] not in snaps[::24] else []):
+            print(
+                f"{s['iteration']:>4} {s['regime']:<22} "
+                f"{s['dao_score']:>7.4f} {s['center_cross_event']:>8.4f} "
+                f"{s['x_mid_functional_x']:>8.4f} {s['edge_braid']:>8.4f} "
+                f"{s['membrane_score']:>7.4f} {s['fusion_like_gain']:>7.4f} "
+                f"{s['outer_inversion_risk']:>7.4f} {s['net_coherence_gain']:>7.4f}"
+            )
+
+    print("\n-- Endzustand --")
+    print(json.dumps({
+        "regime": result["regime"],
+        "dao": result["dao"],
+        "core_pair": result["core_pair_state"],
+        "membranes": result["membranes"],
+        "heart_arcs": result["heart_arcs"],
+        "light_resonance": result["light_resonance"],
+        "barbelo_reflection": result["barbelo_reflection"],
+    }, ensure_ascii=False, indent=2))
+
+    return result
+
+
+if __name__ == "__main__":
