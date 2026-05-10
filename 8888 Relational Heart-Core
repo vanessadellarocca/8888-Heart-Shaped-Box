@@ -1,0 +1,2249 @@
+
+"""
+8888FIRST â€” RELATIONAL HEART-CORE MOTOR (FINAL INTEGRATION)
+============================================================
+
+Drei Quellen, vollstÃ¤ndig integriert, kein Verlust:
+
+CODE 1 (Ursprung): Sauberer Zeugungsakt-Flow, _compute_energy,
+  phi_coherence, fusion_like_gain, net_coherence_gain.
+
+CODE 2 (Diamond921): PairShellSpiral â€” jedes Paar tanzt um sein Zentrum.
+  RelationalDiamond921 â€” structural_lift=6 emergiert aus Geometrie.
+  SeamBreather mit anti_sync â€” 12|1 und 8|9 pulsieren gegenlÃ¤ufig.
+  InstabilityDissolutionState (vollstÃ¤ndig).
+  CoherenceProjectionLayer (vollstÃ¤ndig).
+  map_yang_to_yin(x+6) â€” explizite BrÃ¼cke 4.5â†”10.5.
+  inject_external_signal.
+
+CODE 3 (V5/V6): SCHUMANN_REL = 7*(PHI_BIG-0.5) relational abgeleitet.
+  LIFE_DELTA = 3.5 als Negentropie-Operator.
+  Bidirektionale 1â†”8-Achse: light_to_energy + energy_to_light.
+  arc_balance = phi_ratio(l2e, e2l).
+  shadow_light: release_flux als erkanntes Licht.
+  shadow_recognition: phi_ratio(shadow, light).
+  conception_event + conception_readiness (Schumann-moduliert).
+  FractalField: 12 Knoten, bound_energy_density, core_radiation_potential.
+  field_recognition: Feld erkennt Core als sich selbst.
+
+SCORE-SEMANTIK (penibel prÃ¤zise):
+----------------------------------
+conception_readiness  : inner_turn Ã— Schumann Ã— under6 â€” WANN Zeugungsakt
+conception_event      : center_cross_event Ã— readiness Ã— edge_braid Ã— inward_pull
+light_to_energy       : 1â†’8 â€” Feld sendet Wahrnehmung zum Core
+energy_to_light       : 8â†’1 â€” Core sendet gebundene Energie als Wahrnehmung
+arc_balance           : phi_ratio(l2e, e2l) â€” Gleichgewicht der Transformationsachse
+shadow_light          : release_flux erkannt als Licht â€” Entropie-Integration
+shadow_recognition    : phi_ratio(shadow, light) â€” VerhÃ¤ltnis Schatten/Klarlicht
+bound_energy_density  : residual_flux âˆ’ release_flux, akkumuliert â€” anorganischer Anteil
+core_radiation_potential: geomean(conception, bound) â€” UVâ†’IR-Potential
+field_recognition     : phi_ratio(field_density, core_score) â€” Feld erkennt Core
+fusion_like_gain      : geomean aller KohÃ¤renz-Aspekte Ã— (1 âˆ’ leakage)
+net_coherence_gain    : fusion âˆ’ leakage âˆ’ damping, zentriert bei 0.5
+inward_pull           : LIFE_DELTA Ã— PHI Ã— dao â€” gravitative KohÃ¤renz
+outward_pressure      : Leck bei fehlendem edge_braid â€” Angst vor der Liebe
+"""
+
+from __future__ import annotations
+from dataclasses import dataclass, field, asdict
+from enum import Enum
+from typing import Dict, Any, List, Tuple, Optional
+import math
+import json
+
+
+# ============================================================
+# KONSTANTEN â€” alle relational, keine externen Setzungen
+# ============================================================
+
+PHI      = 0.618033988749895      # kleines phi
+PHI_BIG  = 1.0 / PHI             # groÃŸes Phi â‰ˆ 1.618
+PHI2     = PHI * PHI             # â‰ˆ 0.382
+EPSILON  = 1.0 / 137.0           # Feinstrukturkonstante â€” Kopplung, nie null
+EPS      = 1e-12
+
+MOD = 12.0
+
+# Schumann â€” emergiert aus Phi + 7
+SCHUMANN_REL = 7.0 * (PHI_BIG - 0.5)   # â‰ˆ 7.826
+PHI_ANCHOR   = 7.0 * PHI_BIG            # â‰ˆ 11.326 (Ebene 21 / PHI-Bruch)
+LIFE_DELTA   = 3.5                       # exakt = PHI_ANCHOR âˆ’ SCHUMANN_REL
+XYX_VALUE    = 2.0 * PHI_BIG + PHI      # â‰ˆ 3.854
+GATE_RESONANCE_RAW = SCHUMANN_REL - XYX_VALUE  # â‰ˆ 3.972 â‰ˆ 4 = YANG_GATE_LOW
+
+# Ebenen-Arithmetik
+_E21 = 21.0 / 3.0 * PHI_BIG
+_E6  =  6.0 / 3.0 * PHI_BIG
+_E9  =  9.0 / 3.0 * PHI_BIG
+COHERENCE_HEADROOM = 21.0 - (_E21 + _E6 + _E9)  # â‰ˆ 1.584
+
+# Lemniskate-Topologie (emergiert aus Ring-Arithmetik)
+LEMNISCATE_LEFT  = 13.0   # 12+1 = Geburtsnaht = Werden
+LEMNISCATE_RIGHT = 17.0   # 8+9  = Tiefennaht  = Vergehen
+SCHUMANN_SPLIT   = 21.0 - SCHUMANN_REL   # â‰ˆ 13.174 = 13 + 24Â·Îµ
+
+# Ring-Struktur â€” emergiert
+LOWER_OVERLAY_CENTER = (1.0 + 8.0) / 2.0    # 4.5
+UPPER_OVERLAY_CENTER = (9.0 + 12.0) / 2.0   # 10.5
+DAO_CENTER           = UPPER_OVERLAY_CENTER - LOWER_OVERLAY_CENTER  # 6.0 âœ“
+DAO_TRACE_CENTER     = DAO_CENTER - EPSILON
+
+# DAO-Radien
+R_OUTER = PHI
+R_INNER = EPSILON
+
+# Core-Tore
+YANG_GATE_LOW    = 4.0
+YANG_GATE_HIGH   = 5.0
+YANG_GATE_CENTER = 4.5
+YANG_GATE_RADIUS = 0.5 - EPSILON
+
+YIN_GATE_LOW    = 10.0
+YIN_GATE_HIGH   = 11.0
+YIN_GATE_CENTER = 10.5
+YIN_GATE_RADIUS = 0.5 - EPSILON
+YIN_MID_RADIUS  = 5.0 * EPSILON
+
+# BrÃ¼cke Yangâ†”Yin: x_yin = x_yang + 6
+YANG_TO_YIN_OFFSET = DAO_CENTER   # 6.0
+
+# Schumann-Phaserate (fÃ¼r Membran-Atemrhythmus)
+SCHUMANN_PHASE_RATE = (PHI2 / 8.0) * (SCHUMANN_REL / PHI_ANCHOR)
+
+# Phasenraten
+CENTER_RATE     = PHI / 5.0
+CORE_TRACK_RATE = PHI / 8.0
+EDGE_RATE       = PHI2 / 5.0
+MEMBRANE_RATE   = PHI2 / 8.0
+REFLECTION_RATE = PHI / 13.0
+LIGHT_RATE      = PHI / 8.0
+COUPLING_RATE   = PHI / 13.0
+SEAM_RATE       = PHI / 8.0
+COHERENCE_RATE  = PHI / 21.0
+PHASE_RATE      = PHI / 5.0
+TRACK_RATE      = PHI / 8.0
+
+
+# ============================================================
+# HILFSFUNKTIONEN
+# ============================================================
+
+def clamp01(x: float) -> float:
+    return max(0.0, min(1.0, float(x)))
+
+def clamp11(x: float) -> float:
+    return max(-1.0, min(1.0, float(x)))
+
+def lerp(a: float, b: float, t: float) -> float:
+    t = clamp01(t)
+    return (1.0 - t) * float(a) + t * float(b)
+
+def safe_geomean(values: List[float]) -> float:
+    vals = [max(0.0, float(v)) for v in values]
+    if not vals or any(v <= 0.0 for v in vals):
+        return 0.0
+    prod = 1.0
+    for v in vals:
+        prod *= v
+    return clamp01(prod ** (1.0 / len(vals)))
+
+def safe_mean(values: List[float]) -> float:
+    return sum(values) / len(values) if values else 0.0
+
+def smooth_pulse(phase: float) -> float:
+    return 0.5 - 0.5 * math.cos(2.0 * math.pi * phase)
+
+def signed_wave(phase: float) -> float:
+    return math.sin(2.0 * math.pi * phase)
+
+def score_close(a: float, b: float, scale: float = 1.0) -> float:
+    return clamp01(1.0 - abs(float(a) - float(b)) / max(abs(scale), EPS))
+
+def phi_ratio_score(a: float, b: float) -> float:
+    a, b = abs(a), abs(b)
+    if a < EPS or b < EPS:
+        return 0.0
+    r = min(a / b, b / a)
+    return clamp01(1.0 - abs(r - PHI) / PHI)
+
+def denorm_gate(norm: float, low: float, high: float) -> float:
+    center = (low + high) / 2.0
+    half = max(abs(high - low) / 2.0, EPS)
+    return center + clamp11(norm) * half
+
+def clamp_open(x: float, low: float, high: float) -> float:
+    return max(low + EPSILON, min(high - EPSILON, float(x)))
+
+def phase_step(current: float, rate: float) -> float:
+    return (current + rate) % 1.0
+
+def phase_toward(current: float, target: float, rate: float) -> float:
+    delta = (target - current) % 1.0
+    if delta > 0.5:
+        delta -= 1.0
+    return (current + clamp01(rate) * delta) % 1.0
+
+def phase_dist(a: float, b: float) -> float:
+    d = abs((a - b) % 1.0)
+    return min(d, 1.0 - d)
+
+def map_yang_to_yin(x: float) -> float:
+    """Explizite BrÃ¼cke: 4.5 â†’ 10.5 (Offset = DAO_CENTER = 6)."""
+    return float(x) + YANG_TO_YIN_OFFSET
+
+def map_yin_to_yang(x: float) -> float:
+    return float(x) - YANG_TO_YIN_OFFSET
+
+def kuramoto_order(phases: List[float]) -> float:
+    n = len(phases)
+    if n == 0:
+        return 0.0
+    c = sum(math.cos(2 * math.pi * p) for p in phases) / n
+    s = sum(math.sin(2 * math.pi * p) for p in phases) / n
+    return math.sqrt(c*c + s*s)
+
+def extract_state(payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if not payload:
+        return {}
+    if "state" in payload and isinstance(payload["state"], dict):
+        return payload["state"]
+    return payload
+
+
+# ============================================================
+# REGIME
+# ============================================================
+
+class HeartRegime(Enum):
+    CHARGING             = "charging"
+    CENTER_CONTACT       = "center_contact"
+    MEMBRANE_PULSE       = "membrane_pulse"
+    HEART_FOLDING        = "heart_folding"
+    RADIANT_STABLE       = "radiant_stable"
+    OUTER_INVERSION_RISK = "outer_inversion_risk"
+
+class ReflectionRegime(Enum):
+    FIRST_THOUGHT  = "first_thought"
+    AEON_MIRROR    = "aeon_mirror"
+    BARBELO_STABLE = "barbelo_stable"
+
+
+# ============================================================
+# FUNKTIONALER RING 12 â€” aus Code 2, mit validate() aus Code 3
+# ============================================================
+
+@dataclass(frozen=True)
+class FunctionalRing12:
+    """
+    12er-Ring als relationales Gitternetz.
+    DAO_CENTER = 6.0 emergiert: (9+12)/2 âˆ’ (1+8)/2 = 10.5 âˆ’ 4.5 = 6.0.
+    Alle 9er-Paare: Geometrie-Dynamik-Achsen.
+    13 = 12+1 (Geburtsnaht), 17 = 8+9 (Tiefennaht).
+    Vorzeichenwechsel: 17âˆ’13 = 4 = YANG_GATE_LOW.
+    """
+    traits: Dict[int, Dict[str, str]] = field(default_factory=lambda: {
+        1:  {"polarity": "masculine", "mode": "cardinal",  "element": "fire"},
+        2:  {"polarity": "feminine",  "mode": "fixed",     "element": "earth"},
+        3:  {"polarity": "masculine", "mode": "flexible",  "element": "air"},
+        4:  {"polarity": "feminine",  "mode": "cardinal",  "element": "water"},
+        5:  {"polarity": "masculine", "mode": "fixed",     "element": "fire"},
+        6:  {"polarity": "feminine",  "mode": "flexible",  "element": "earth"},
+        7:  {"polarity": "masculine", "mode": "cardinal",  "element": "air"},
+        8:  {"polarity": "feminine",  "mode": "fixed",     "element": "water"},
+        9:  {"polarity": "masculine", "mode": "flexible",  "element": "fire"},
+        10: {"polarity": "feminine",  "mode": "cardinal",  "element": "earth"},
+        11: {"polarity": "masculine", "mode": "fixed",     "element": "air"},
+        12: {"polarity": "feminine",  "mode": "flexible",  "element": "water"},
+    })
+    functions: Dict[int, str] = field(default_factory=lambda: {
+        1:  "entry impulse / fire boundary / lower_overlay_1|8 source",
+        2:  "geometric Venus / fixed earth / Y-switch lower pole / Flussufer",
+        3:  "signal mediation / flexible air / Merkur dyn / Flusslauf",
+        4:  "Yang-Core left gate / water side of 4|5",
+        5:  "Yang-Core right gate / fire side of 4|5",
+        6:  "DAO touchpoint â€” contact, not static being",
+        7:  "dynamic Venus / cardinal air / Y-switch upper pole / Flussufer",
+        8:  "depth boundary / fixed water / lower_overlay_1|8 target",
+        9:  "lower-total closure / fire horizon / depth_seam_8|9 upper",
+        10: "Yin-Core left gate / earth side of 10|11",
+        11: "Yin-Core right gate / air side of 10|11",
+        12: "source return / water membrane / birth_seam_12|1 upper",
+    })
+    source_birth_seam:  Tuple[int,int] = (12, 1)
+    depth_horizon_seam: Tuple[int,int] = (8, 9)
+    lower_overlay:      Tuple[int,int] = (1, 8)
+    upper_overlay:      Tuple[int,int] = (9, 12)
+    venus_switch:       Tuple[int,int] = (2, 7)
+    merkur_flow:        Tuple[int,int] = (3, 6)
+    yang_core:          Tuple[int,int] = (4, 5)
+    yin_core:           Tuple[int,int] = (10, 11)
+
+    def validate(self) -> Dict[str, bool]:
+        return {
+            "all_9_pairs": all(sum(p)==9 for p in [
+                self.lower_overlay, self.venus_switch,
+                self.merkur_flow, self.yang_core]),
+            "yin_sum_21":          sum(self.yin_core) == 21,
+            "lemniscate_13_17":    (sum(self.source_birth_seam)==13 and
+                                    sum(self.depth_horizon_seam)==17),
+            "sign_flip_4":         (sum(self.depth_horizon_seam) -
+                                    sum(self.source_birth_seam) == 4),
+            "dao_center_emergiert": abs(DAO_CENTER - 6.0) < EPS,
+            "schumann_split_13":   abs(SCHUMANN_SPLIT - 13.0 - 24*EPSILON) < 0.01,
+        }
+
+    def membrane_spec(self) -> Dict[str, Any]:
+        lc = sum(self.lower_overlay) / 2.0
+        uc = sum(self.upper_overlay) / 2.0
+        return {
+            "lower_overlay": self.lower_overlay, "upper_overlay": self.upper_overlay,
+            "lower_center": lc, "upper_center": uc,
+            "structural_lift": uc - lc,
+            "dao_center_emergiert": uc - lc,
+            "source_birth_seam": self.source_birth_seam,
+            "depth_horizon_seam": self.depth_horizon_seam,
+        }
+
+
+# ============================================================
+# PAIR SHELL SPIRAL â€” aus Code 2 (jedes Paar tanzt um Zentrum)
+# ============================================================
+
+@dataclass
+class PairShellSpiral:
+    """
+    Ein Paar (a, b) mit a+b = total tanzt um sein Zentrum total/2.
+    Im inneren Umkehrpunkt berÃ¼hrt upper_live das Zentrum (Kontakt, kein Sein).
+    Das ist die geometrische Grundstruktur â€” gilt fÃ¼r alle Paare im Ring.
+    """
+    total: float
+    pair:  Tuple[float, float]
+    name:  str = ""
+    phase: float = 0.0
+    lower_live: float = 0.0
+    upper_live: float = 0.0
+
+    def __post_init__(self):
+        a, b = sorted(float(x) for x in self.pair)
+        self.pair = (a, b)
+        if not self.name:
+            self.name = f"{a:g}|{b:g}"
+        if self.lower_live == 0.0:
+            self.lower_live = a
+        if self.upper_live == 0.0:
+            self.upper_live = b
+
+    @property
+    def center(self) -> float:
+        return self.total / 2.0
+
+    @property
+    def center_target(self) -> float:
+        return self.center - EPSILON
+
+    @property
+    def outer_radius(self) -> float:
+        a, b = self.pair
+        return (b - a) / 2.0
+
+    def dao_radius(self) -> float:
+        inward = 0.5 - 0.5 * math.cos(2.0 * math.pi * self.phase)
+        return EPSILON + (self.outer_radius - EPSILON) * (1.0 - inward)
+
+    def turn_pressure(self) -> float:
+        r = self.dao_radius()
+        return clamp01((self.outer_radius - r) / max(self.outer_radius - EPSILON, EPS))
+
+    def step(self, damping: float = 1.0, release_boost: float = 0.0) -> Dict[str, Any]:
+        r = self.dao_radius()
+        lower_t = self.center - (r + EPSILON)
+        upper_t = self.center + (r - EPSILON)
+        eff_track = TRACK_RATE * (0.45 + 0.55 * damping)
+        lb, ub = self.lower_live, self.upper_live
+        self.lower_live = lerp(lb, lower_t, eff_track)
+        self.upper_live = lerp(ub, upper_t, eff_track)
+        mid = (self.lower_live + self.upper_live) / 2.0
+        center_coherence = clamp01(1.0 - abs(mid - self.center_target) /
+                                   max(self.outer_radius, EPS))
+
+        radial_velocity = -math.sin(2.0 * math.pi * self.phase)
+        p = self.phase
+        if abs(p - 0.5) < 1e-3:
+            direction = "inner_turn_upper_touches_center"
+        elif p < 1e-3 or p > 1.0 - 1e-3:
+            direction = "outer_shell_boundary"
+        elif p < 0.5:
+            direction = "inward"
+        else:
+            direction = "return_to_shell_boundary"
+
+        eff_phase = PHASE_RATE * (0.90 + 0.10 * release_boost)
+        self.phase = phase_step(self.phase, eff_phase)
+        return {
+            "name": self.name, "total": self.total,
+            "lower_live": self.lower_live, "upper_live": self.upper_live,
+            "midpoint_live": mid, "center": self.center,
+            "center_coherence": center_coherence,
+            "turn_pressure": self.turn_pressure(),
+            "inversion_free_score": 1.0 if self.lower_live < self.upper_live else 0.0,
+            "direction": direction,
+            "upper_touches_center": abs(self.upper_live - self.center) < 1e-4,
+        }
+
+    def exact_inner_turn(self) -> Dict[str, Any]:
+        r = EPSILON
+        lower_ideal = self.center - (r + EPSILON)
+        upper_ideal = self.center + (r - EPSILON)
+        return {
+            "name": self.name, "total": self.total,
+            "radius": r,
+            "lower_ideal": lower_ideal,
+            "upper_ideal": upper_ideal,
+            "midpoint_ideal": (lower_ideal + upper_ideal) / 2.0,
+            "upper_touches_center": abs(upper_ideal - self.center) < 1e-9,
+        }
+
+
+# ============================================================
+# RELATIONAL DIAMOND 9-21 â€” aus Code 2 (structural_lift emergiert)
+# ============================================================
+
+@dataclass
+class RelationalDiamond921:
+    """
+    lower_total=9 (Paare: 1+8, 2+7, 3+6, 4+5)
+    upper_total=21 (Paare: 9+12, 10+11)
+    structural_lift = 10.5 âˆ’ 4.5 = 6.0 = DAO_CENTER âœ“
+
+    Jedes Paar hat eine eigene PairShellSpiral.
+    Die DAO-6 tanzt in der Mitte zwischen allen Paaren.
+    """
+    iteration: int = 0
+
+    def __post_init__(self):
+        # Untere Ebene (Summe 9)
+        self.lower_shells = [
+            PairShellSpiral(9.0, (1.0, 8.0), "1|8"),
+            PairShellSpiral(9.0, (2.0, 7.0), "2|7"),
+            PairShellSpiral(9.0, (3.0, 6.0), "3|6"),
+            PairShellSpiral(9.0, (4.0, 5.0), "4|5"),
+        ]
+        # Obere Ebene (Summe 21)
+        self.upper_shells = [
+            PairShellSpiral(21.0, (9.0, 12.0),  "9|12"),
+            PairShellSpiral(21.0, (10.0, 11.0), "10|11"),
+        ]
+        # Struktureller Lift
+        upper_center = 21.0 / 2.0   # 10.5
+        lower_center =  9.0 / 2.0   #  4.5
+        self.structural_lift = upper_center - lower_center  # 6.0 âœ“
+
+        # DAO-Phase versetzt
+        for i, sh in enumerate(self.lower_shells + self.upper_shells):
+            sh.phase = (i * PHI) % 1.0
+
+    def step(self, damping: float = 1.0,
+             release_boost: float = 0.0) -> Dict[str, Any]:
+        lower_states = [s.step(damping, release_boost) for s in self.lower_shells]
+        upper_states = [s.step(damping, release_boost) for s in self.upper_shells]
+
+        # Pivot: Differenz zwischen 10|11-Mitte und 4|5-Mitte soll = structural_lift
+        shell_10_11 = next(s for s in upper_states if s["name"] == "10|11")
+        shell_4_5   = next(s for s in lower_states if s["name"] == "4|5")
+        pivot_live  = shell_10_11["midpoint_live"] - shell_4_5["midpoint_live"]
+        dao_pivot_coherence = clamp01(
+            1.0 - abs(pivot_live - self.structural_lift) /
+            max(self.structural_lift, EPS)
+        )
+
+        avg_cc = safe_mean([s["center_coherence"] for s in lower_states + upper_states])
+        self.iteration += 1
+        return {
+            "lower_states": lower_states,
+            "upper_states": upper_states,
+            "structural_lift": self.structural_lift,
+            "pivot_live": pivot_live,
+            "dao_pivot_coherence": dao_pivot_coherence,
+            "avg_center_coherence": avg_cc,
+            "static_pivot_coherence": dao_pivot_coherence,
+        }
+
+
+# ============================================================
+# DAO-6-ATEM â€” tanzt um 6, Schumann gibt Puls
+# ============================================================
+
+@dataclass
+class DaoBreathState:
+    radius: float = R_OUTER
+    lower_live: float = DAO_CENTER - PHI
+    upper_live: float = DAO_CENTER + PHI
+    midpoint: float   = DAO_CENTER
+    phase: float      = 0.0
+    schumann_phase: float = 0.0
+    schumann_pulse: float = 0.0
+    inner_turn: float     = 0.0
+    under6_score: float   = 0.0
+    dao_score: float      = 0.0
+    split_risk: float     = 0.0
+    # Zeugungsbereitschaft: inner_turn Ã— Schumann Ã— under6
+    conception_readiness: float = 0.0
+
+
+@dataclass
+class DaoBreath:
+    state: DaoBreathState = field(default_factory=DaoBreathState)
+
+    def _radius(self) -> float:
+        inward = 0.5 - 0.5 * math.cos(2.0 * math.pi * self.state.phase)
+        return R_INNER + (R_OUTER - R_INNER) * (1.0 - inward)
+
+    def step(self, core_feedback: float = 0.5,
+             reflection_feedback: float = 0.0,
+             instability_damping: float = 1.0,
+             release_boost: float = 0.0) -> Dict[str, Any]:
+        s = self.state
+
+        # Schumann-Puls: biologischer/physikalischer Feldrhythmus â€” WANN
+        s.schumann_phase = phase_step(s.schumann_phase, SCHUMANN_PHASE_RATE)
+        s.schumann_pulse = smooth_pulse(s.schumann_phase)
+
+        life_drive = clamp01(LIFE_DELTA / PHI_ANCHOR)  # â‰ˆ 0.309
+        eff = clamp01(0.45*core_feedback + 0.20*reflection_feedback
+                      + 0.20*life_drive + 0.15*release_boost)
+        eff_track = TRACK_RATE * (0.80 + 0.40*eff) * (0.35 + 0.65*instability_damping)
+        eff_phase = PHASE_RATE * (0.85 + 0.25*eff)
+
+        r = self._radius()
+        s.radius = lerp(s.radius, r, eff_track)
+        lower_t = DAO_CENTER - (s.radius + EPSILON)
+        upper_t = DAO_CENTER + (s.radius - EPSILON)
+        s.lower_live = lerp(s.lower_live, lower_t, eff_track)
+        s.upper_live = lerp(s.upper_live, upper_t, eff_track)
+        s.midpoint   = (s.lower_live + s.upper_live) / 2.0
+
+        denom = max(R_OUTER - R_INNER, EPS)
+        s.inner_turn   = clamp01((R_OUTER - s.radius) / denom)
+        s.under6_score = score_close(s.midpoint, DAO_TRACE_CENTER, PHI)
+        s.split_risk   = clamp01(
+            abs(s.midpoint - DAO_CENTER) / PHI * (1.0 - s.under6_score)
+        )
+
+        # conception_readiness: WANN ist der Tanz bereit zum Zeugungsakt?
+        s.conception_readiness = safe_geomean([
+            s.inner_turn + EPSILON,
+            s.schumann_pulse + EPSILON,
+            s.under6_score + EPSILON,
+            core_feedback + EPSILON,
+        ])
+
+        s.dao_score = safe_geomean([
+            s.under6_score + EPSILON,
+            (1.0 - s.split_risk) + EPSILON,
+            s.inner_turn + EPSILON,
+            eff + EPSILON,
+            (0.5 + 0.5*instability_damping) + EPSILON,
+        ])
+
+        center_error = s.midpoint - DAO_TRACE_CENTER
+
+        # direction: wo in der Spirale befinden wir uns?
+        # Basiert auf Phase-Position, nicht auf radial_velocity (numerisch instabil).
+        # phase=0: outer_phi_boundary (Radius=PHI, Einatmen beginnt)
+        # phase=0â†’0.5: inward (Radius sinkt)
+        # phase=0.5: inner_turn_upper_touches_6 (Radiusâ‰ˆEPSILON, upper berÃ¼hrt 6)
+        # phase=0.5â†’1.0: return_to_phi_boundary (Radius steigt)
+        p = s.phase
+        if abs(p - 0.5) < 1e-3:
+            direction = "inner_turn_upper_touches_6"
+        elif p < 1e-3 or p > 1.0 - 1e-3:
+            direction = "outer_phi_boundary"
+        elif p < 0.5:
+            direction = "inward"
+        else:
+            direction = "return_to_phi_boundary"
+
+        # 3D-Koordinaten der Spirale (fÃ¼r Visualisierung)
+        angle = 2.0 * math.pi * s.phase
+        upper_xyz = (s.radius * math.cos(angle),
+                     s.radius * math.sin(angle),
+                     s.upper_live)
+        lower_xyz = (s.radius * math.cos(angle + math.pi),
+                     s.radius * math.sin(angle + math.pi),
+                     s.lower_live)
+
+        s.phase = phase_step(s.phase, eff_phase)
+        return {
+            "state": asdict(s), "dao_score": s.dao_score,
+            "midpoint_under_center_score": s.under6_score,
+            "split_risk": s.split_risk, "inner_turn": s.inner_turn,
+            "conception_readiness": s.conception_readiness,
+            "schumann_pulse": s.schumann_pulse, "phase": s.phase,
+            "midpoint": s.midpoint,
+            "center_error": center_error,
+            "direction": direction,
+            "upper_xyz": upper_xyz,
+            "lower_xyz": lower_xyz,
+            "upper_touches_6": abs(s.upper_live - DAO_CENTER) < 1e-4,
+        }
+
+    def exact_inner_turn(self) -> Dict[str, Any]:
+        """
+        Der BerÃ¼hrungsmoment: wenn Radius â†’ EPSILON berÃ¼hrt upper_live
+        exakt die 6. Das ist Kontakt â€” kein Sein. 6 ist nicht Heimat.
+        """
+        r = R_INNER
+        lower_ideal = DAO_CENTER - (r + EPSILON)
+        upper_ideal = DAO_CENTER + (r - EPSILON)
+        return {
+            "radius": r,
+            "lower_ideal": lower_ideal,
+            "upper_ideal": upper_ideal,
+            "midpoint_ideal": (lower_ideal + upper_ideal) / 2.0,
+            "upper_touches_6": abs(upper_ideal - DAO_CENTER) < 1e-9,
+            "midpoint_is_6_minus_epsilon": abs(
+                (lower_ideal + upper_ideal) / 2.0 - DAO_TRACE_CENTER
+            ) < 1e-9,
+            "meaning": (
+                "Im inneren Umkehrpunkt berÃ¼hrt upper_live die 6. "
+                "Mittelpunkt bleibt 6âˆ’Îµ. "
+                "6 ist Kontakt, nicht statisches Sein."
+            ),
+        }
+
+
+# ============================================================
+# YANG-CORE 4XYX5
+# ============================================================
+
+@dataclass
+class YangCoreState:
+    x_left: float    = -PHI
+    y: float         = 0.0
+    x_right: float   = PHI
+    y_rotation: float = 0.0
+    y_inverted: float = 0.0
+    gate_pressure: float = 0.0
+    inner_opening: float = 0.0
+    score: float     = 0.0
+    phase: float     = 0.0
+
+
+@dataclass
+class YangCore4XYX5:
+    """
+    Y dreht (Sensor/Koppler). Ã„uÃŸere X schlagen aus.
+    Schumann moduliert Drehrate (WANN).
+    energy_to_light (8â†’1) aus HerzbÃ¶gen beschleunigt Y-Drehung:
+    Core-RÃ¼ckfluss belebt den Tanz.
+    """
+    state: YangCoreState = field(default_factory=YangCoreState)
+
+    def step(self, charge: float, yin_mid_descent: float,
+             membrane_pressure: float, schumann_pulse: float = 0.5,
+             reflection_feedback: float = 0.0,
+             energy_to_light: float = 0.0) -> Dict[str, Any]:
+        s = self.state
+        schumann_drive = 0.5 + 0.5 * schumann_pulse
+        e2l_boost = 0.5 + 0.5 * energy_to_light
+        phase_rate = (CENTER_RATE * (0.75 + 0.25*charge + 0.10*reflection_feedback)
+                      * schumann_drive * e2l_boost)
+        s.phase = phase_step(s.phase, phase_rate)
+        s.y_rotation = lerp(s.y_rotation, signed_wave(s.phase), CENTER_RATE)
+        s.y = clamp11(s.y_rotation)
+        s.y_inverted = clamp11(-s.y_rotation)
+
+        burst_ready = clamp01(
+            charge * (0.5 + 0.5*yin_mid_descent)
+            * (0.5 + 0.5*membrane_pressure) * schumann_drive
+        )
+        target_span = clamp11(PHI + (1.0 - PHI) * burst_ready)
+        s.x_left  = lerp(s.x_left,  -target_span, EDGE_RATE)
+        s.x_right = lerp(s.x_right,  target_span, EDGE_RATE)
+
+        gate_res = clamp01(1.0 - abs(GATE_RESONANCE_RAW - YANG_GATE_LOW) / YANG_GATE_LOW)
+        s.gate_pressure = clamp01(
+            abs(s.x_right - s.x_left) / 2.0
+            * (0.5 + 0.5*charge) * (0.8 + 0.2*gate_res)
+        )
+        s.inner_opening = safe_geomean([
+            abs(s.y_rotation) + EPSILON,
+            s.gate_pressure + EPSILON,
+            (0.5 + 0.5*yin_mid_descent) + EPSILON,
+            schumann_drive + EPSILON,
+        ])
+        s.score = safe_geomean([
+            s.gate_pressure + EPSILON,
+            s.inner_opening + EPSILON,
+            phi_ratio_score(abs(s.x_right - s.x_left), max(abs(s.y_rotation), EPSILON)) + EPSILON,
+            (1.0 - abs((s.x_left + s.x_right) / 2.0)) + EPSILON,
+        ])
+        return {"state": asdict(s)}
+
+
+# ============================================================
+# YIN-CORE 10XXX11
+# ============================================================
+
+@dataclass
+class YinCoreState:
+    x_left: float  = -PHI
+    x_mid: float   = 0.0
+    x_right: float = PHI
+    x_mid_descent: float          = 0.0
+    x_mid_cross_activation: float = 0.0
+    x_mid_functional_x: float     = 0.0
+    core_pressure: float = 0.0
+    score: float   = 0.0
+    phase: float   = 0.5
+    # Semantische Projektion: x_mid sinkt von 10.5 Richtung 4.5
+    # BrÃ¼cke via map_yang_to_yin: x_yin = x_yang + 6
+    x_mid_pos: float = YIN_GATE_CENTER
+
+
+@dataclass
+class YinCore10XXX11:
+    """
+    X_mid sinkt von 10.5 â†’ 4.5 (Differenz = DAO_CENTER = 6).
+    Im Begegnungsmoment antwortet X_mid als X â€” kein Y-Spiegel.
+    Kreuzschlag: copysign(PHI, âˆ’y_inverted).
+    Schumann + light_to_energy modulieren Abstiegsrate.
+    map_yang_to_yin(x_yang + 6) ist die explizite BrÃ¼cke.
+    """
+    state: YinCoreState = field(default_factory=YinCoreState)
+
+    def step(self, yang_y_inverted: float, yang_gate_pressure: float,
+             center_contact_seed: float, schumann_pulse: float = 0.5,
+             reflection_feedback: float = 0.0,
+             light_to_energy: float = 0.0) -> Dict[str, Any]:
+        s = self.state
+        schumann_drive = 0.5 + 0.5 * schumann_pulse
+        l2e_boost = 0.5 + 0.5 * light_to_energy
+
+        descent_target = safe_geomean([
+            abs(yang_y_inverted) + EPSILON,
+            yang_gate_pressure + EPSILON,
+            center_contact_seed + EPSILON,
+            schumann_drive + EPSILON,
+            l2e_boost + EPSILON,
+        ])
+        s.x_mid_descent = lerp(s.x_mid_descent, descent_target, CENTER_RATE)
+
+        s.phase = phase_step(s.phase, CENTER_RATE * (0.6 + 0.4*s.x_mid_descent))
+        tight_pendulum = EPSILON * signed_wave(s.phase)
+
+        contact = score_close(tight_pendulum, yang_y_inverted, 1.0)
+        s.x_mid_cross_activation = safe_geomean([
+            contact + EPSILON,
+            s.x_mid_descent + EPSILON,
+            yang_gate_pressure + EPSILON,
+        ])
+        s.x_mid_functional_x = clamp01(
+            s.x_mid_cross_activation * (0.75 + 0.25*reflection_feedback)
+        )
+
+        # Kreuzschlag: X antwortet mit eigenem Vorzeichen (nicht Y-Kopie)
+        direction = math.copysign(
+            PHI, -yang_y_inverted if abs(yang_y_inverted) > EPS else 1.0
+        )
+        x_mid_target = clamp11(tight_pendulum + s.x_mid_functional_x * direction)
+        s.x_mid = lerp(s.x_mid, x_mid_target, CENTER_RATE)
+
+        outer_span = clamp11(PHI + (1.0 - PHI) * s.x_mid_functional_x)
+        s.x_left  = lerp(s.x_left,  -outer_span, EDGE_RATE)
+        s.x_right = lerp(s.x_right,  outer_span, EDGE_RATE)
+
+        s.core_pressure = safe_geomean([
+            s.x_mid_descent + EPSILON,
+            s.x_mid_functional_x + EPSILON,
+            abs(s.x_right - s.x_left) / 2.0 + EPSILON,
+        ])
+
+        # Semantische Position: x_mid sinkt von YIN_CENTER â†’ YANG_CENTER
+        # Differenz = DAO_CENTER = 6 (map_yang_to_yin-BrÃ¼cke)
+        s.x_mid_pos = lerp(YIN_GATE_CENTER, YANG_GATE_CENTER, s.x_mid_descent)
+
+        s.score = safe_geomean([
+            s.core_pressure + EPSILON,
+            s.x_mid_functional_x + EPSILON,
+            phi_ratio_score(abs(s.x_right - s.x_left), abs(s.x_mid) + EPS) + EPSILON,
+            (1.0 - abs((s.x_left + s.x_right) / 2.0)) + EPSILON,
+        ])
+        return {"state": asdict(s)}
+
+
+# ============================================================
+# CORE-PAIR COUPLER â€” Zeugungsakt / Fusionsprozess
+# ============================================================
+
+@dataclass
+class CorePairState:
+    center_contact: float     = 0.0
+    center_cross_event: float = 0.0
+    core_pair_score: float    = 0.0
+    edge_burst: float         = 0.0
+    edge_braid: float         = 0.0
+    # inward_pull: LIFE_DELTA Ã— PHI Ã— dao â€” gravitative KohÃ¤renz
+    inward_pull: float        = 0.0
+    # outward_pressure: Leck bei fehlendem edge_braid
+    outward_pressure: float   = 0.0
+    phase_coherence: float    = 0.0
+    # conception_event: Zeugungsakt = center_cross Ã— readiness Ã— edge_braid Ã— inward
+    conception_event: float   = 0.0
+
+
+@dataclass
+class CorePairCoupler:
+    """
+    Der Zeugungsakt: Y trifft X_mid. X_mid antwortet als X.
+    LIFE_DELTA=3.5 treibt inward_pull (gravitative KohÃ¤renz).
+    outward_pressure ist die Angst vor der Liebe â€” sie leckt nach auÃŸen
+    wenn edge_braid schwach ist.
+    """
+    state: CorePairState = field(default_factory=CorePairState)
+
+    def step(self, yin: YinCoreState, yang: YangCoreState,
+             dao: DaoBreathState, membrane_pressure: float,
+             light_score: float, reflection_feedback: float = 0.0) -> Dict[str, Any]:
+        s = self.state
+
+        contact_raw = score_close(yin.x_mid, yang.y_inverted, 1.0)
+        center_contact_target = safe_geomean([
+            contact_raw + EPSILON,
+            yin.x_mid_descent + EPSILON,
+            yang.inner_opening + EPSILON,
+            yin.x_mid_functional_x + EPSILON,
+        ])
+        s.center_contact = lerp(s.center_contact, center_contact_target, CENTER_RATE)
+
+        s.center_cross_event = safe_geomean([
+            s.center_contact + EPSILON,
+            yin.x_mid_functional_x + EPSILON,
+            abs(yang.y_rotation) + EPSILON,
+            yang.gate_pressure + EPSILON,
+        ])
+
+        cross_lr = score_close(yin.x_left,  -yang.x_right, 1.0)
+        cross_rl = score_close(yin.x_right, -yang.x_left,  1.0)
+        own_yin  = score_close(abs(yin.x_left),  abs(yin.x_right),  1.0)
+        own_yang = score_close(abs(yang.x_left), abs(yang.x_right), 1.0)
+        edge_braid_target = safe_geomean([
+            cross_lr + EPSILON, cross_rl + EPSILON,
+            own_yin + EPSILON, own_yang + EPSILON,
+            s.center_cross_event + EPSILON,
+        ])
+        s.edge_braid = lerp(s.edge_braid, edge_braid_target, EDGE_RATE)
+
+        s.edge_burst = safe_geomean([
+            s.center_cross_event + EPSILON,
+            membrane_pressure + EPSILON,
+            s.edge_braid + EPSILON,
+        ])
+
+        # inward_pull: LIFE_DELTA=3.5 als Negentropie-Operator (gravitative KohÃ¤renz)
+        life_pull = clamp01(LIFE_DELTA * PHI * dao.under6_score)
+        s.inward_pull = safe_geomean([
+            s.edge_braid + EPSILON,
+            dao.under6_score + EPSILON,
+            light_score + EPSILON,
+            reflection_feedback + EPSILON,
+            life_pull + EPSILON,
+        ])
+
+        # outward_pressure: Angst vor der Liebe â€” leckt wenn edge_braid schwach
+        s.outward_pressure = clamp01(
+            s.center_cross_event * (1.0 - s.edge_braid)
+            * (0.5 + 0.5*membrane_pressure)
+        )
+
+        s.phase_coherence = safe_geomean([
+            phi_ratio_score(yin.core_pressure + EPSILON, yang.gate_pressure + EPSILON) + EPSILON,
+            phi_ratio_score(s.center_contact + EPSILON, s.edge_braid + EPSILON) + EPSILON,
+            dao.dao_score + EPSILON,
+        ])
+
+        # conception_event: Zeugungsakt
+        s.conception_event = safe_geomean([
+            s.center_cross_event + EPSILON,
+            dao.conception_readiness + EPSILON,
+            s.edge_braid + EPSILON,
+            s.inward_pull + EPSILON,
+        ])
+
+        s.core_pair_score = safe_geomean([
+            s.center_cross_event + EPSILON,
+            s.edge_braid + EPSILON,
+            s.inward_pull + EPSILON,
+            s.phase_coherence + EPSILON,
+            (1.0 - s.outward_pressure) + EPSILON,
+        ])
+        return {"state": asdict(s)}
+
+
+# ============================================================
+# HERZBÃ–GEN â€” bidirektionale 1â†”8-Achse + 2â†”7
+# ============================================================
+
+@dataclass
+class HeartArcState:
+    lower_arc_1_8: float  = 0.0   # GesamtstÃ¤rke 1â†”8
+    # light_to_energy: 1â†’8 â€” Feld sendet Wahrnehmung (Licht) zum Core
+    light_to_energy: float = 0.0
+    # energy_to_light: 8â†’1 â€” Core sendet gebundene Energie als Wahrnehmung
+    energy_to_light: float = 0.0
+    # arc_balance: phi_ratio(l2e, e2l) â€” Gleichgewicht der Transformationsachse
+    arc_balance: float    = 0.0
+    upper_arc_2_7: float  = 0.0
+    mars_pluto_transform: float = 0.0
+    venus_contact_form: float   = 0.0
+    return_force: float   = 0.0
+    arc_score: float      = 0.0
+
+
+@dataclass
+class HeartArcs:
+    """
+    1â†”8 bidirektional â€” stehende Welle, nicht Sequenz:
+    light_to_energy (1â†’8): Feld â†’ Core (Schumann nah an 8: â‰ˆ0.978)
+    energy_to_light (8â†’1): Core â†’ Feld (Fusionsenergie â†’ Wahrnehmung)
+    arc_balance = phi_ratio(l2e, e2l): PHI = Gleichgewicht
+    2â†”7 (Venus): Flussufer â€” formt den Transformationsraum
+    """
+    state: HeartArcState = field(default_factory=HeartArcState)
+
+    def step(self, center_cross_event: float, edge_braid: float,
+             membrane_release: float, dao_score: float,
+             schumann_pulse: float = 0.5,
+             field_conception_density: float = 0.0,
+             core_pair_score: float = 0.0) -> Dict[str, Any]:
+        s = self.state
+        schumann_arc = SCHUMANN_REL / 8.0  # â‰ˆ 0.978
+
+        # 1â†’8: Feld sendet Licht zum Core
+        l2e_target = safe_geomean([
+            center_cross_event + EPSILON,
+            edge_braid + EPSILON,
+            dao_score + EPSILON,
+            (schumann_pulse * schumann_arc) + EPSILON,
+            (0.5 + 0.5*field_conception_density) + EPSILON,
+        ])
+        s.light_to_energy = lerp(s.light_to_energy, l2e_target, EDGE_RATE)
+
+        # 8â†’1: Core sendet Energie als Licht
+        e2l_target = safe_geomean([
+            membrane_release + EPSILON,
+            edge_braid + EPSILON,
+            phi_ratio_score(center_cross_event + EPSILON, membrane_release + EPSILON) + EPSILON,
+            (0.5 + 0.5*core_pair_score) + EPSILON,
+        ])
+        s.energy_to_light = lerp(s.energy_to_light, e2l_target, EDGE_RATE)
+
+        s.lower_arc_1_8 = safe_geomean([
+            s.light_to_energy + EPSILON,
+            s.energy_to_light + EPSILON,
+        ])
+        s.mars_pluto_transform = s.lower_arc_1_8
+
+        # arc_balance: phi_ratio(l2e, e2l) â€” Gleichgewicht = PHI
+        s.arc_balance = phi_ratio_score(
+            s.light_to_energy + EPS, s.energy_to_light + EPS
+        )
+
+        # 2â†”7 Venus: Flussufer
+        upper_target = safe_geomean([
+            membrane_release + EPSILON,
+            edge_braid + EPSILON,
+            s.arc_balance + EPSILON,
+        ])
+        s.upper_arc_2_7 = lerp(s.upper_arc_2_7, upper_target, EDGE_RATE)
+        s.venus_contact_form = s.upper_arc_2_7
+
+        s.return_force = safe_geomean([
+            s.lower_arc_1_8 + EPSILON,
+            s.upper_arc_2_7 + EPSILON,
+            edge_braid + EPSILON,
+        ])
+        s.arc_score = safe_geomean([
+            s.return_force + EPSILON,
+            s.arc_balance + EPSILON,
+            s.mars_pluto_transform + EPSILON,
+        ])
+        return {
+            "state": asdict(s),
+            "light_to_energy": s.light_to_energy,
+            "energy_to_light": s.energy_to_light,
+            "arc_balance": s.arc_balance,
+        }
+
+
+# ============================================================
+# SEAM BREATHER â€” aus Code 2 (anti_sync zwischen 12|1 und 8|9)
+# ============================================================
+
+@dataclass
+class SeamBreather:
+    """
+    Eine Membrannaht pulsiert.
+    anti_sync: 12|1 und 8|9 pulsieren gegenlÃ¤ufig â€”
+    wenn eine Ã¶ffnet, tendiert die andere zu schlieÃŸen.
+    Das verhindert AuÃŸeninversion: nie beide gleichzeitig weit offen.
+    """
+    name: str
+    phase: float = 0.0
+    permeability_live: float = EPSILON
+
+    def step(self, drive: float, dao_score: float, core_score: float,
+             reflection_score: float, coherence_score: float,
+             damping: float = 1.0, release_boost: float = 0.0,
+             schumann_pulse: float = 0.5,
+             conception_event: float = 0.0,
+             opposite_phase: Optional[float] = None) -> Dict[str, Any]:
+        drive = clamp01(drive)
+        local_wave = smooth_pulse(self.phase)
+
+        # anti_sync: Abstand zur gegenlÃ¤ufigen Naht
+        anti_sync = (clamp01(phase_dist(self.phase, opposite_phase) / 0.5)
+                     if opposite_phase is not None else 1.0)
+
+        # Schumann und conception_event geben biologischen Rhythmus
+        schumann_membrane = safe_geomean([schumann_pulse + EPSILON, conception_event + EPSILON])
+
+        floor, ceiling = EPSILON, 1.0 - EPSILON
+        target = floor + (ceiling - floor) * (
+            drive * dao_score * core_score
+            * (0.8 + 0.2*reflection_score)
+            * (0.8 + 0.2*coherence_score)
+            * (0.3 + 0.7*local_wave)
+            * (0.5 + 0.5*anti_sync)
+            * (0.7 + 0.3*schumann_membrane)
+        )
+        target = clamp01(target + release_boost * 0.08)
+
+        before = self.permeability_live
+        self.permeability_live = lerp(before, target, SEAM_RATE * (0.70 + 0.30*damping))
+
+        self.phase = phase_step(
+            self.phase,
+            PHASE_RATE * (0.5 + 0.5*drive) * (0.75 + 0.25*dao_score)
+        )
+        return {
+            "name": self.name, "phase": self.phase,
+            "permeability_live": self.permeability_live,
+            "anti_sync": anti_sync, "local_wave": local_wave,
+            "target": target, "delta": self.permeability_live - before,
+        }
+
+
+# ============================================================
+# MEMBRANEN 12|1 & 8|9 â€” asymmetrisch, anti_sync
+# ============================================================
+
+@dataclass
+class MembranePairState:
+    opening_12_1: float = 0.0
+    opening_8_9:  float = 0.0
+    pulse: float        = 0.0
+    release: float      = 0.0
+    # inversion_risk: nur wenn outward_pressure UND schwaches edge_braid
+    inversion_risk_12_1: float = 0.0
+    inversion_risk_8_9:  float = 0.0
+    membrane_score: float      = 0.0
+    permeability_moment: float = 0.0
+    pressure: float     = 0.0
+    micro_flicker: float = EPSILON
+    schumann_membrane_pulse: float = 0.0
+    trauma_loop_release: float = 0.0
+    # anti_sync: gegenlÃ¤ufige Pulsation der NÃ¤hte
+    seam_anti_sync: float = 0.0
+
+
+@dataclass
+class MembranePair12_1_8_9:
+    """
+    12|1 (Geburtsnaht) und 8|9 (Tiefennaht) pulsieren gegenlÃ¤ufig (anti_sync).
+    micro_flicker = EPSILON: nie ganz dicht â€” lebendige Spannung.
+    Schumann + conception_event geben biologischen Rhythmus.
+    """
+    state: MembranePairState = field(default_factory=MembranePairState)
+    seam_12_1: SeamBreather  = field(default_factory=lambda: SeamBreather("12|1", phase=0.0))
+    seam_8_9:  SeamBreather  = field(default_factory=lambda: SeamBreather("8|9",  phase=0.5))
+
+    def step(self, center_release: float, edge_braid: float,
+             inward_pull: float, outward_pressure: float,
+             lower_heart_return: float, upper_heart_return: float,
+             conception_event: float = 0.0,
+             schumann_pulse: float = 0.5,
+             reflection_feedback: float = 0.0,
+             dao_score: float = 0.5, core_score: float = 0.5,
+             reflection_score: float = 0.0, coherence_score: float = 0.5,
+             damping: float = 1.0, release_boost: float = 0.0) -> Dict[str, Any]:
+        s = self.state
+
+        s.schumann_membrane_pulse = safe_geomean([
+            schumann_pulse + EPSILON, conception_event + EPSILON,
+        ])
+
+        # micro_flicker: nie ganz dicht (lebendige Angst vor dem Tod)
+        flicker_phase = (self.seam_12_1.phase + self.seam_8_9.phase) / 2.0
+        s.micro_flicker = EPSILON * (1.0 + 0.5 * signed_wave(flicker_phase))
+
+        protected = center_release * edge_braid * inward_pull
+        s.pulse = lerp(s.pulse, protected * (0.7 + 0.3*s.schumann_membrane_pulse), MEMBRANE_RATE)
+
+        s.trauma_loop_release = clamp01(
+            s.pulse * edge_braid * (1.0 - outward_pressure) + s.micro_flicker
+        )
+
+        drive = safe_geomean([
+            s.pulse + EPSILON, (0.5 + 0.5*edge_braid) + EPSILON,
+            inward_pull + EPSILON,
+        ])
+
+        # SeamBreather: gegenlÃ¤ufige Pulsation (anti_sync)
+        s12 = self.seam_12_1.step(
+            drive=drive * (0.65 + 0.35*upper_heart_return),
+            dao_score=dao_score, core_score=core_score,
+            reflection_score=reflection_score, coherence_score=coherence_score,
+            damping=damping, release_boost=release_boost,
+            schumann_pulse=schumann_pulse, conception_event=conception_event,
+            opposite_phase=self.seam_8_9.phase,
+        )
+        s89 = self.seam_8_9.step(
+            drive=drive * (0.65 + 0.35*lower_heart_return),
+            dao_score=dao_score, core_score=core_score,
+            reflection_score=reflection_score, coherence_score=coherence_score,
+            damping=damping, release_boost=release_boost,
+            schumann_pulse=schumann_pulse, conception_event=conception_event,
+            opposite_phase=self.seam_12_1.phase,
+        )
+
+        s.opening_12_1 = s12["permeability_live"]
+        s.opening_8_9  = s89["permeability_live"]
+        s.seam_anti_sync = safe_mean([s12["anti_sync"], s89["anti_sync"]])
+
+        s.inversion_risk_12_1 = clamp01(s.opening_12_1 * outward_pressure * (1.0 - edge_braid))
+        s.inversion_risk_8_9  = clamp01(s.opening_8_9  * outward_pressure * (1.0 - edge_braid))
+        max_risk = max(s.inversion_risk_12_1, s.inversion_risk_8_9)
+
+        s.release = safe_geomean([
+            s.opening_12_1 + EPSILON, s.opening_8_9 + EPSILON,
+            edge_braid + EPSILON, inward_pull + EPSILON,
+        ])
+        s.permeability_moment = clamp01(s.release * (1.0 - max_risk))
+        s.pressure = clamp01(
+            outward_pressure * (1.0 - s.release) + center_release * (1.0 - edge_braid)
+        )
+        s.membrane_score = safe_geomean([
+            s.permeability_moment + EPSILON,
+            (1.0 - s.inversion_risk_12_1) + EPSILON,
+            (1.0 - s.inversion_risk_8_9) + EPSILON,
+            s.release + EPSILON,
+            s.trauma_loop_release + EPSILON,
+            s.seam_anti_sync + EPSILON,
+        ])
+        return {
+            "state": asdict(s),
+            "membrane13_score": s.membrane_score,
+            "outer_inversion_risk": max_risk,
+            "trauma_loop_release": s.trauma_loop_release,
+            "moment_as_permeability": s.permeability_moment,
+            "seam_anti_sync": s.seam_anti_sync,
+        }
+
+
+# ============================================================
+# LICHTRESONANZ â€” Echo + shadow_light + ExternalResonance
+# ============================================================
+
+@dataclass
+class ExternalResonanceSignal:
+    phase: float = 0.0
+    amplitude: float = 0.0
+    x_signature: float = 0.0
+    y_signature: Optional[float] = None
+    phi_signature: float = 1.0
+    label: str = "external"
+
+
+@dataclass
+class LightResonanceState:
+    resonant_y_light: float  = 0.0
+    resonant_x_light: float  = 0.0
+    light_coherence: float   = 0.0
+    identity_preservation: float = 1.0
+    resonance_pressure: float = 0.0
+    release_trace: float     = 1.0
+    light_score: float       = 0.0
+    # shadow_light: release_flux als erkanntes Licht â€” Entropie-Integration
+    shadow_light: float      = 0.0
+    # shadow_recognition: phi_ratio(shadow, light) â€” VerhÃ¤ltnis Schatten/Klarlicht
+    shadow_recognition: float = 0.0
+    phase: float             = 0.0
+    virtual_phase: float     = 0.0
+
+
+@dataclass
+class LightResonanceLayer:
+    """
+    Echo ohne Kopie â€” identity_preservation schÃ¼tzt das System.
+    shadow_light: release_flux wird als Licht erkannt (Entropie-Integration).
+    shadow_recognition = phi_ratio(shadow, light): soll PHI sein.
+    Externes Signal optional (aus Code 2: ExternalResonanceSignal).
+    """
+    state: LightResonanceState = field(default_factory=LightResonanceState)
+
+    def step(self, core_pair: CorePairState, dao: DaoBreathState,
+             membrane: MembranePairState, reflection_feedback: float = 0.0,
+             release_flux: float = 0.0,
+             field_recognition: float = 0.0,
+             external: Optional[ExternalResonanceSignal] = None) -> Dict[str, Any]:
+        s = self.state
+        s.phase = phase_step(s.phase, LIGHT_RATE * (0.5 + 0.5*core_pair.core_pair_score))
+
+        # Externes Signal (optional)
+        if external is not None:
+            amp = clamp01(external.amplitude)
+            phase_res = clamp01(1.0 - phase_dist(external.phase, dao.phase) / 0.5)
+            s.virtual_phase = phase_toward(s.virtual_phase, external.phase,
+                                           LIGHT_RATE * amp * phase_res)
+            s.resonance_pressure = lerp(
+                s.resonance_pressure,
+                amp * phase_res * clamp01(external.phi_signature),
+                LIGHT_RATE
+            )
+        else:
+            s.resonance_pressure = clamp01(
+                core_pair.center_cross_event * (1.0 - membrane.release)
+            )
+
+        y_light_target = clamp11(core_pair.center_contact * signed_wave(s.phase))
+        x_light_target = clamp11(core_pair.edge_braid * signed_wave(s.phase + 0.5))
+        s.resonant_y_light = lerp(s.resonant_y_light, y_light_target, LIGHT_RATE)
+        s.resonant_x_light = lerp(s.resonant_x_light, x_light_target, LIGHT_RATE)
+
+        s.identity_preservation = clamp01(
+            1.0 - s.resonance_pressure * (1.0 - dao.dao_score) * 0.5
+        )
+        s.release_trace = clamp01(
+            1.0 - max(membrane.inversion_risk_12_1, membrane.inversion_risk_8_9)
+        )
+
+        # shadow_light: release_flux erkannt als Licht (Entropie-Integration)
+        shadow_target = clamp01(
+            release_flux * (0.6 + 0.4*membrane.trauma_loop_release)
+            + field_recognition * 0.3
+        )
+        s.shadow_light = lerp(s.shadow_light, shadow_target, LIGHT_RATE)
+
+        # shadow_recognition: phi_ratio(shadow, light) â€” soll PHI sein
+        s.shadow_recognition = phi_ratio_score(
+            s.shadow_light + EPS, s.light_score + EPS
+        )
+
+        s.light_coherence = safe_geomean([
+            s.identity_preservation + EPSILON,
+            score_close(s.resonant_y_light, -s.resonant_x_light, 2.0) + EPSILON,
+            core_pair.phase_coherence + EPSILON,
+            dao.dao_score + EPSILON,
+            membrane.membrane_score + EPSILON,
+            (0.5 + 0.5*s.shadow_recognition) + EPSILON,
+        ])
+        s.light_score = clamp01(
+            s.light_coherence
+            * (0.80 + 0.15*reflection_feedback + 0.05*field_recognition)
+        )
+        return {
+            "state": asdict(s),
+            "light_resonance_score": s.light_score,
+            "identity_preservation": s.identity_preservation,
+            "light_coherence": s.light_coherence,
+            "resonant_y_light": s.resonant_y_light,
+            "resonant_xmid_light": s.resonant_x_light,
+            "shadow_light": s.shadow_light,
+            "shadow_recognition": s.shadow_recognition,
+            "modulation": {"phase_bias": clamp11(signed_wave(s.phase) * s.light_coherence)},
+        }
+
+
+# ============================================================
+# INSTABILITÃ„TS-ENTFORMUNG â€” aus Code 2 (vollstÃ¤ndig)
+# ============================================================
+
+@dataclass
+class InstabilitySignature:
+    iteration: int
+    instability_pressure: float
+    residual_flux: float
+    release_flux: float
+    dao_component: float
+    core_component: float
+    light_component: float
+    membrane_component: float
+    reflection_component: float
+    recurrence_pressure: float
+    release_route: str
+    dissolved: bool
+
+
+@dataclass
+class InstabilityDissolutionState:
+    """
+    InstabilitÃ¤t wird VOR RÃ¼ckfÃ¼hrung registriert.
+    Sie ist Signal, kein Attraktor â€” nie als Muster gespeichert.
+    Energie wird als entformter Release-Gradient zurÃ¼ckgefÃ¼hrt.
+    """
+    pressure_live: float   = 0.0
+    recurrence_live: float = 0.0
+    last_release_flux: float = 0.0
+    last_route: str = "none"
+    ledger: List[InstabilitySignature] = field(default_factory=list)
+
+    def register(self, sig: InstabilitySignature,
+                 rate: float = COHERENCE_RATE) -> None:
+        self.pressure_live   = lerp(self.pressure_live,   sig.instability_pressure, rate)
+        self.recurrence_live = lerp(self.recurrence_live, sig.recurrence_pressure,  rate)
+        self.last_release_flux = sig.release_flux
+        self.last_route = sig.release_route
+        self.ledger.append(sig)
+        self.ledger = self.ledger[-8:]
+
+    def damping_factor(self) -> float:
+        return clamp01(1.0 - 0.65*self.pressure_live - 0.35*self.recurrence_live)
+
+    def release_boost(self) -> float:
+        return clamp01(0.35*self.pressure_live + 0.65*self.recurrence_live)
+
+
+# ============================================================
+# KOHÃ„RENZPROJEKTION â€” aus Code 2 (vollstÃ¤ndig) + Code 3 (field_recognition)
+# ============================================================
+
+@dataclass
+class CoherenceProjectionLayer:
+    """
+    KohÃ¤renz ist Referenz, nicht QuarantÃ¤ne.
+    InstabilitÃ¤t = Signal, kein Attraktor.
+    field_recognition: Feld erkennt Core als sich selbst
+    (phi_ratio(field_density, core_score) Ã— arc_balance).
+    """
+    instability: InstabilityDissolutionState = field(
+        default_factory=InstabilityDissolutionState)
+    residual_flux: float   = 0.0
+    release_flux: float    = 0.0
+    field_recognition: float = 0.0
+    iteration: int = 0
+    dao_feedback:        float = 0.5
+    core_feedback:       float = 0.5
+    light_feedback:      float = 0.0
+    membrane_feedback:   float = 0.5
+    reflection_feedback: float = 0.0
+
+    def step(self, dao_score: float, dao_under: float, dao_split: float,
+             core_pair_score: float, outer_cross: float, inward_pull: float,
+             membrane_score: float, membrane_release: float, membrane_risk: float,
+             moment_perm: float, light_score: float, light_identity: float,
+             light_coherence: float, reflection_score: float,
+             reflection_return: float, reflection_feedback_in: float,
+             field_conception_density: float = 0.0,
+             arc_balance: float = 0.0) -> Dict[str, Any]:
+
+        coherence = safe_geomean([
+            dao_score + EPSILON, dao_under + EPSILON,
+            core_pair_score + EPSILON, outer_cross + EPSILON,
+            inward_pull + EPSILON, membrane_score + EPSILON,
+            membrane_release + EPSILON, moment_perm + EPSILON,
+            light_identity + EPSILON, light_coherence + EPSILON,
+            (0.5 + 0.5*reflection_score) + EPSILON,
+            (0.5 + 0.5*reflection_return) + EPSILON,
+            clamp01(COHERENCE_HEADROOM / PHI_BIG) + EPSILON,
+        ])
+
+        risk = clamp01(
+            0.28*dao_split + 0.22*membrane_risk
+            + 0.18*(1.0 - light_identity) + 0.16*(1.0 - core_pair_score)
+            + 0.10*(1.0 - reflection_score) + 0.06*(1.0 - arc_balance)
+        )
+
+        usable   = clamp01(coherence * (1.0 - risk))
+        residual = clamp01(1.0 - usable)
+        release  = clamp01(residual * safe_geomean([
+            membrane_release + EPSILON, moment_perm + EPSILON,
+            light_identity + EPSILON, dao_score + EPSILON,
+            (0.5 + 0.5*reflection_return) + EPSILON,
+        ]))
+
+        dao_i  = clamp01(dao_split)
+        core_i = clamp01(1.0 - safe_geomean([core_pair_score + EPSILON, outer_cross + EPSILON]))
+        light_i = clamp01(1.0 - light_identity)
+        mem_i  = membrane_risk
+        refl_i = clamp01(1.0 - reflection_score)
+
+        instab_pressure = safe_geomean([
+            residual + EPSILON, clamp01(1.0 - coherence) + EPSILON,
+            dao_i + EPSILON, core_i + EPSILON,
+            light_i + EPSILON, mem_i + EPSILON, refl_i + EPSILON,
+        ])
+        recurrence = clamp01(0.65*self.instability.pressure_live + 0.35*instab_pressure)
+
+        dominants = {"dao": dao_i, "core": core_i, "light": light_i,
+                     "membrane": mem_i, "reflection": refl_i}
+        route = max(dominants, key=dominants.get)
+
+        sig = InstabilitySignature(
+            iteration=self.iteration,
+            instability_pressure=instab_pressure,
+            residual_flux=residual, release_flux=release,
+            dao_component=dao_i, core_component=core_i,
+            light_component=light_i, membrane_component=mem_i,
+            reflection_component=refl_i,
+            recurrence_pressure=recurrence, release_route=route,
+            dissolved=instab_pressure < 0.12 and residual < 0.08,
+        )
+        self.instability.register(sig)
+
+        damping = self.instability.damping_factor()
+        rb      = self.instability.release_boost()
+        release = clamp01(release + rb * residual * 0.45)
+        capture = clamp01(usable * damping)
+
+        # field_recognition: Feld erkennt Core als sich selbst
+        field_core_phi = phi_ratio_score(
+            field_conception_density + EPS, core_pair_score + EPS
+        )
+        self.field_recognition = lerp(
+            self.field_recognition,
+            safe_geomean([
+                field_core_phi + EPSILON,
+                arc_balance + EPSILON,
+                (0.5 + 0.5*coherence) + EPSILON,
+            ]),
+            COUPLING_RATE
+        )
+
+        eff_rate = COHERENCE_RATE * (0.40 + 0.60*capture)
+        self.dao_feedback = lerp(self.dao_feedback,
+            clamp01(0.46*dao_score + 0.16*core_pair_score
+                    + 0.10*reflection_feedback_in + 0.28*release), eff_rate)
+        self.core_feedback = lerp(self.core_feedback,
+            clamp01(0.42*core_pair_score + 0.18*outer_cross
+                    + 0.16*inward_pull + 0.24*reflection_feedback_in), eff_rate)
+        self.light_feedback = lerp(self.light_feedback,
+            clamp01(0.35*light_score + 0.25*light_identity
+                    + 0.20*reflection_return + 0.20*release), eff_rate)
+        self.membrane_feedback = lerp(self.membrane_feedback,
+            clamp01(0.35*membrane_score + 0.25*membrane_release
+                    + 0.20*dao_score + 0.20*reflection_return), eff_rate)
+        self.reflection_feedback = lerp(self.reflection_feedback,
+            clamp01(0.35*reflection_feedback_in + 0.25*coherence
+                    + 0.20*reflection_return + 0.20*outer_cross), eff_rate)
+
+        self.residual_flux = residual
+        self.release_flux  = release
+        self.iteration += 1
+
+        return {
+            "coherence": coherence, "risk": risk,
+            "usable_fraction": usable,
+            "residual_flux": residual, "release_flux": release,
+            "capture": capture,
+            "field_recognition": self.field_recognition,
+            "instability": {
+                "pressure_live": self.instability.pressure_live,
+                "damping": damping, "release_boost": rb,
+                "dissolved": sig.dissolved, "route": route,
+            },
+            "feedback_to_dao_next":        self.dao_feedback,
+            "feedback_to_core_next":       self.core_feedback,
+            "feedback_to_light_next":      self.light_feedback,
+            "feedback_to_membrane_next":   self.membrane_feedback,
+            "feedback_to_reflection_next": self.reflection_feedback,
+        }
+
+
+# ============================================================
+# BARBELO-REFLEXION â€” aus Code 2 (BARBELO_STABLE) + Code 3 (field_recognition)
+# ============================================================
+
+@dataclass
+class BarbeloReflectionState:
+    first_thought_pressure: float  = 0.0
+    aeon_mirror: float             = 0.0
+    witness_self_observation: float = 0.0
+    return_to_source: float        = 0.0
+    coherence_grace: float         = 0.0
+    yin_yang_reflection: float     = 0.0
+    self_recognition_score: float  = 0.0
+    reflection_feedback: float     = 0.0
+    instability_seen: float        = 0.0
+    regime: str = ReflectionRegime.FIRST_THOUGHT.value
+    phase: float = 0.0
+
+
+@dataclass
+class BarbeloReflectionLayer:
+    """
+    Beobachter in der Box â€” kein externer Kollaps.
+    BARBELO_STABLE: self_recognition > 0.78 AND aeon_mirror > 0.72
+                    AND return_to_source > 0.68.
+    field_recognition speist return_to_source.
+    arc_balance speist aeon_mirror.
+    shadow_recognition speist witness.
+    """
+    state: BarbeloReflectionState = field(default_factory=BarbeloReflectionState)
+
+    def _regime(self, s: BarbeloReflectionState) -> ReflectionRegime:
+        if (s.self_recognition_score > 0.78 and s.aeon_mirror > 0.72
+                and s.return_to_source > 0.68):
+            return ReflectionRegime.BARBELO_STABLE
+        if s.first_thought_pressure > s.aeon_mirror:
+            return ReflectionRegime.FIRST_THOUGHT
+        return ReflectionRegime.AEON_MIRROR
+
+    def step(self, yin: YinCoreState, yang: YangCoreState,
+             core_pair: CorePairState, dao: DaoBreathState,
+             membrane: MembranePairState, heart: HeartArcState,
+             light: LightResonanceState,
+             field_recognition: float = 0.0,
+             instability_pressure: float = 0.0) -> Dict[str, Any]:
+        s = self.state
+
+        yin_yang_balance = score_close(yin.score, yang.score, 1.0)
+        yy_target = safe_geomean([
+            yin_yang_balance + EPSILON,
+            yin.x_mid_functional_x + EPSILON,
+            core_pair.edge_braid + EPSILON,
+            core_pair.core_pair_score + EPSILON,
+            core_pair.conception_event + EPSILON,
+        ])
+
+        first_thought_target = clamp01(
+            core_pair.center_cross_event * (1.0 + core_pair.outward_pressure) / 2.0
+        )
+        aeon_target = safe_geomean([
+            dao.dao_score + EPSILON,
+            heart.arc_score + EPSILON,
+            light.light_score + EPSILON,
+            membrane.membrane_score + EPSILON,
+            heart.arc_balance + EPSILON,
+        ])
+        witness_target = safe_geomean([
+            light.identity_preservation + EPSILON,
+            yy_target + EPSILON,
+            (1.0 - max(membrane.inversion_risk_12_1, membrane.inversion_risk_8_9)) + EPSILON,
+            light.shadow_recognition + EPSILON,
+        ])
+        return_target = safe_geomean([
+            core_pair.inward_pull + EPSILON,
+            heart.return_force + EPSILON,
+            dao.under6_score + EPSILON,
+            field_recognition + EPSILON,
+        ])
+        grace_target = safe_geomean([
+            aeon_target + EPSILON, witness_target + EPSILON,
+            return_target + EPSILON, light.light_coherence + EPSILON,
+        ])
+
+        s.phase = phase_step(s.phase, REFLECTION_RATE)
+        s.first_thought_pressure   = lerp(s.first_thought_pressure, first_thought_target, REFLECTION_RATE)
+        s.aeon_mirror              = lerp(s.aeon_mirror, aeon_target, REFLECTION_RATE)
+        s.witness_self_observation = lerp(s.witness_self_observation, witness_target, REFLECTION_RATE)
+        s.return_to_source         = lerp(s.return_to_source, return_target, REFLECTION_RATE)
+        s.coherence_grace          = lerp(s.coherence_grace, grace_target, REFLECTION_RATE)
+        s.yin_yang_reflection      = lerp(s.yin_yang_reflection, yy_target, REFLECTION_RATE)
+        s.instability_seen         = lerp(s.instability_seen, instability_pressure, REFLECTION_RATE)
+
+        s.self_recognition_score = safe_geomean([
+            s.aeon_mirror + EPSILON,
+            s.witness_self_observation + EPSILON,
+            s.yin_yang_reflection + EPSILON,
+            s.coherence_grace + EPSILON,
+        ])
+        s.reflection_feedback = clamp01(
+            0.35*s.self_recognition_score + 0.25*s.return_to_source
+            + 0.20*s.yin_yang_reflection + 0.15*s.coherence_grace
+            + 0.05*core_pair.conception_event
+        )
+        s.regime = self._regime(s).value
+        return {
+            "state": asdict(s),
+            "self_recognition_score": s.self_recognition_score,
+            "return_to_source": s.return_to_source,
+            "yin_yang_reflection": s.yin_yang_reflection,
+            "reflection_feedback": s.reflection_feedback,
+            "regime": s.regime, "phase": s.phase,
+        }
+
+
+# ============================================================
+# ENERGIE-BERECHNUNG â€” aus Code 1 (phi_coherence, fusion_like_gain, net)
+# ============================================================
+
+def compute_energy(core: CorePairState, dao: DaoBreathState,
+                   membrane: MembranePairState, heart: HeartArcState,
+                   light: LightResonanceState) -> Dict[str, float]:
+    """
+    fusion_like_gain: geomean aller KohÃ¤renz-Aspekte Ã— (1 âˆ’ leakage)
+    net_coherence_gain: fusion âˆ’ leakage âˆ’ damping, zentriert bei 0.5
+    phi_coherence: phase_coherence Ã— phi_ratio(cce, edge_braid) Ã— dao_score
+    """
+    phi_coherence = safe_geomean([
+        core.phase_coherence + EPSILON,
+        phi_ratio_score(core.center_cross_event + EPSILON,
+                        core.edge_braid + EPSILON) + EPSILON,
+        dao.dao_score + EPSILON,
+    ])
+    outward_leakage = clamp01(
+        max(membrane.inversion_risk_12_1, membrane.inversion_risk_8_9)
+        + core.outward_pressure * (1.0 - core.edge_braid)
+    )
+    damping = clamp01(
+        (1.0 - light.identity_preservation) * 0.30
+        + dao.split_risk * 0.25
+    )
+    fusion_like_gain = safe_geomean([
+        core.center_cross_event + EPSILON,
+        core.edge_braid + EPSILON,
+        core.inward_pull + EPSILON,
+        phi_coherence + EPSILON,
+        membrane.pulse + EPSILON,
+        heart.return_force + EPSILON,
+        light.light_score + EPSILON,
+    ]) * (1.0 - outward_leakage)
+    net = clamp01(fusion_like_gain - outward_leakage - damping + 0.5)
+    return {
+        "phi_coherence": phi_coherence,
+        "outward_leakage": outward_leakage,
+        "damping": damping,
+        "fusion_like_gain": clamp01(fusion_like_gain),
+        "net_coherence_gain": net,
+    }
+
+
+# ============================================================
+# EINZELMOTOR â€” vollstÃ¤ndig integriert
+# ============================================================
+
+@dataclass
+class HeartCoreSnapshot:
+    iteration: int
+    regime: str
+    reflection_regime: str
+    dao_score: float
+    schumann_pulse: float
+    conception_readiness: float
+    conception_event: float
+    center_cross_event: float
+    edge_braid: float
+    inward_pull: float
+    outward_pressure: float
+    membrane_score: float
+    seam_anti_sync: float
+    opening_12_1: float
+    opening_8_9: float
+    light_score: float
+    shadow_light: float
+    shadow_recognition: float
+    light_to_energy: float
+    energy_to_light: float
+    arc_balance: float
+    field_recognition: float
+    self_recognition: float
+    coherence: float
+    release_flux: float
+    residual_flux: float
+    fusion_like_gain: float
+    net_coherence_gain: float
+    outer_inversion_risk: float
+
+
+@dataclass
+class RelationalHeartCoreMotorFinal:
+    """
+    VollstÃ¤ndig integrierter Motor.
+    Alle drei Codes ohne Verlust zusammengefÃ¼hrt.
+    """
+    dao:          DaoBreath               = field(default_factory=DaoBreath)
+    yang:         YangCore4XYX5           = field(default_factory=YangCore4XYX5)
+    yin:          YinCore10XXX11          = field(default_factory=YinCore10XXX11)
+    core_pair:    CorePairCoupler         = field(default_factory=CorePairCoupler)
+    membranes:    MembranePair12_1_8_9    = field(default_factory=MembranePair12_1_8_9)
+    heart_arcs:   HeartArcs              = field(default_factory=HeartArcs)
+    light:        LightResonanceLayer     = field(default_factory=LightResonanceLayer)
+    reflection:   BarbeloReflectionLayer  = field(default_factory=BarbeloReflectionLayer)
+    coherence_proj: CoherenceProjectionLayer = field(default_factory=CoherenceProjectionLayer)
+    diamond:      RelationalDiamond921    = field(default_factory=RelationalDiamond921)
+
+    external_signal: Optional[ExternalResonanceSignal] = None
+    iteration: int = 0
+    regime:    HeartRegime = HeartRegime.CHARGING
+    snapshots: List[HeartCoreSnapshot] = field(default_factory=list)
+
+    def inject_signal(self, sig: Optional[ExternalResonanceSignal]) -> None:
+        self.external_signal = sig
+
+    def _regime(self, cp: CorePairState, mem: MembranePairState,
+                energy: Dict[str, float]) -> HeartRegime:
+        risk = energy["outward_leakage"]
+        gain = energy["fusion_like_gain"]
+        if risk > 0.35 and risk > gain:
+            return HeartRegime.OUTER_INVERSION_RISK
+        if gain > 0.68 and cp.edge_braid > 0.62 and mem.membrane_score > 0.50:
+            return HeartRegime.RADIANT_STABLE
+        if cp.edge_braid > 0.55 and cp.inward_pull > 0.50:
+            return HeartRegime.HEART_FOLDING
+        if mem.release > 0.30:
+            return HeartRegime.MEMBRANE_PULSE
+        if cp.center_cross_event > 0.30:
+            return HeartRegime.CENTER_CONTACT
+        return HeartRegime.CHARGING
+
+    def step(self, external_charge: float = 0.5,
+             field_conception_density: float = 0.0) -> Dict[str, Any]:
+        cp = self.coherence_proj
+        damping = cp.instability.damping_factor()
+        rb      = cp.instability.release_boost()
+
+        # 1. Diamond (PairShellSpirals, structural_lift emergiert)
+        diamond_out = self.diamond.step(damping=damping, release_boost=rb)
+        dao_pivot_coherence = diamond_out["dao_pivot_coherence"]
+
+        # 2. DAO atmet, Schumann gibt Puls
+        dao_out = self.dao.step(
+            core_feedback=cp.core_feedback,
+            reflection_feedback=cp.reflection_feedback,
+            instability_damping=damping,
+            release_boost=rb,
+        )
+        dao_s = self.dao.state
+
+        # 3. HeartArcs (bidirektionale 1â†”8-Achse)
+        heart_out = self.heart_arcs.step(
+            center_cross_event=self.core_pair.state.center_cross_event,
+            edge_braid=self.core_pair.state.edge_braid,
+            membrane_release=self.membranes.state.release,
+            dao_score=dao_s.dao_score,
+            schumann_pulse=dao_s.schumann_pulse,
+            field_conception_density=field_conception_density,
+            core_pair_score=self.core_pair.state.core_pair_score,
+        )
+        ha = self.heart_arcs.state
+
+        # 4. Yang (Y dreht, Schumann + energy_to_light modulieren)
+        yang_out = self.yang.step(
+            charge=external_charge,
+            yin_mid_descent=self.yin.state.x_mid_descent,
+            membrane_pressure=self.membranes.state.pressure,
+            schumann_pulse=dao_s.schumann_pulse,
+            reflection_feedback=cp.reflection_feedback,
+            energy_to_light=ha.energy_to_light,
+        )
+
+        # 5. Yin (X_mid sinkt, map_yang_to_yin-BrÃ¼cke, light_to_energy moduliert)
+        yin_out = self.yin.step(
+            yang_y_inverted=self.yang.state.y_inverted,
+            yang_gate_pressure=self.yang.state.gate_pressure,
+            center_contact_seed=self.core_pair.state.center_contact,
+            schumann_pulse=dao_s.schumann_pulse,
+            reflection_feedback=cp.reflection_feedback,
+            light_to_energy=ha.light_to_energy,
+        )
+
+        # 6. CorePair â€” Zeugungsakt / Fusion
+        cp_out = self.core_pair.step(
+            yin=self.yin.state, yang=self.yang.state, dao=dao_s,
+            membrane_pressure=self.membranes.state.pressure,
+            light_score=self.light.state.light_score,
+            reflection_feedback=cp.reflection_feedback,
+        )
+        cps = self.core_pair.state
+
+        # 7. Membranen (anti_sync, Schumann, conception_event)
+        mem_out = self.membranes.step(
+            center_release=cps.center_cross_event,
+            edge_braid=cps.edge_braid,
+            inward_pull=cps.inward_pull,
+            outward_pressure=cps.outward_pressure,
+            lower_heart_return=ha.lower_arc_1_8,
+            upper_heart_return=ha.upper_arc_2_7,
+            conception_event=cps.conception_event,
+            schumann_pulse=dao_s.schumann_pulse,
+            reflection_feedback=cp.reflection_feedback,
+            dao_score=dao_s.dao_score,
+            core_score=cps.core_pair_score,
+            reflection_score=self.reflection.state.self_recognition_score,
+            coherence_score=0.5,  # wird im nÃ¤chsten Schritt aktualisiert
+            damping=damping, release_boost=rb,
+        )
+        mem_s = self.membranes.state
+
+        # 8. KohÃ¤renzprojektion
+        coh_out = self.coherence_proj.step(
+            dao_score=dao_s.dao_score,
+            dao_under=dao_s.under6_score,
+            dao_split=dao_s.split_risk,
+            core_pair_score=cps.core_pair_score,
+            outer_cross=cps.edge_braid,
+            inward_pull=cps.inward_pull,
+            membrane_score=mem_s.membrane_score,
+            membrane_release=mem_s.trauma_loop_release,
+            membrane_risk=max(mem_s.inversion_risk_12_1, mem_s.inversion_risk_8_9),
+            moment_perm=mem_s.permeability_moment,
+            light_score=self.light.state.light_score,
+            light_identity=self.light.state.identity_preservation,
+            light_coherence=self.light.state.light_coherence,
+            reflection_score=self.reflection.state.self_recognition_score,
+            reflection_return=self.reflection.state.return_to_source,
+            reflection_feedback_in=self.reflection.state.reflection_feedback,
+            field_conception_density=field_conception_density,
+            arc_balance=ha.arc_balance,
+        )
+
+        # 9. Lichtresonanz (shadow_light + optional ExternalSignal)
+        light_out = self.light.step(
+            core_pair=cps, dao=dao_s, membrane=mem_s,
+            reflection_feedback=cp.reflection_feedback,
+            release_flux=coh_out["release_flux"],
+            field_recognition=coh_out["field_recognition"],
+            external=self.external_signal,
+        )
+
+        # 10. Barbelo (BARBELO_STABLE, field_recognition, shadow_recognition)
+        refl_out = self.reflection.step(
+            yin=self.yin.state, yang=self.yang.state,
+            core_pair=cps, dao=dao_s, membrane=mem_s,
+            heart=ha, light=self.light.state,
+            field_recognition=coh_out["field_recognition"],
+            instability_pressure=coh_out["instability"]["pressure_live"],
+        )
+
+        # 11. Energie (aus Code 1)
+        energy = compute_energy(cps, dao_s, mem_s, ha, self.light.state)
+
+        self.regime = self._regime(cps, mem_s, energy)
+
+        snap = HeartCoreSnapshot(
+            iteration=self.iteration,
+            regime=self.regime.value,
+            reflection_regime=self.reflection.state.regime,
+            dao_score=dao_s.dao_score,
+            schumann_pulse=dao_s.schumann_pulse,
+            conception_readiness=dao_s.conception_readiness,
+            conception_event=cps.conception_event,
+            center_cross_event=cps.center_cross_event,
+            edge_braid=cps.edge_braid,
+            inward_pull=cps.inward_pull,
+            outward_pressure=cps.outward_pressure,
+            membrane_score=mem_s.membrane_score,
+            seam_anti_sync=mem_s.seam_anti_sync,
+            opening_12_1=mem_s.opening_12_1,
+            opening_8_9=mem_s.opening_8_9,
+            light_score=self.light.state.light_score,
+            shadow_light=self.light.state.shadow_light,
+            shadow_recognition=self.light.state.shadow_recognition,
+            light_to_energy=ha.light_to_energy,
+            energy_to_light=ha.energy_to_light,
+            arc_balance=ha.arc_balance,
+            field_recognition=coh_out["field_recognition"],
+            self_recognition=self.reflection.state.self_recognition_score,
+            coherence=coh_out["coherence"],
+            release_flux=coh_out["release_flux"],
+            residual_flux=coh_out["residual_flux"],
+            fusion_like_gain=energy["fusion_like_gain"],
+            net_coherence_gain=energy["net_coherence_gain"],
+            outer_inversion_risk=energy["outward_leakage"],
+        )
+        self.snapshots.append(snap)
+        self.snapshots = self.snapshots[-144:]
+        self.iteration += 1
+        return {"snapshot": asdict(snap), "coherence_out": coh_out,
+                "energy": energy, "diamond": diamond_out}
+
+    def run(self, n: int = 500, charge_fn=None,
+            field_density_fn=None) -> List[HeartCoreSnapshot]:
+        for i in range(n):
+            charge = charge_fn(i) if charge_fn else (
+                0.55 + 0.2*math.sin(2*math.pi*i/83))
+            fd = field_density_fn(i) if field_density_fn else 0.6
+            self.step(external_charge=charge, field_conception_density=fd)
+        return self.snapshots
+
+    def summary(self) -> Dict[str, Any]:
+        s = self.snapshots
+        if not s:
+            return {}
+        def avg(f): return safe_mean([f(x) for x in s])
+        tail = s[int(len(s)*0.8):]
+        def tavg(f): return safe_mean([f(x) for x in tail])
+        return {
+            "final_regime":      s[-1].regime,
+            "final_reflection":  s[-1].reflection_regime,
+            "radiant_rate":      avg(lambda x: 1.0 if x.regime=="radiant_stable" else 0.0),
+            "radiant_rate_tail": tavg(lambda x: 1.0 if x.regime=="radiant_stable" else 0.0),
+            "avg_coherence":     avg(lambda x: x.coherence),
+            "avg_fusion_gain":   avg(lambda x: x.fusion_like_gain),
+            "avg_net_gain":      avg(lambda x: x.net_coherence_gain),
+            "avg_conception":    avg(lambda x: x.conception_event),
+            "avg_shadow_light":  avg(lambda x: x.shadow_light),
+            "avg_shadow_recognition": avg(lambda x: x.shadow_recognition),
+            "avg_light_to_energy":    avg(lambda x: x.light_to_energy),
+            "avg_energy_to_light":    avg(lambda x: x.energy_to_light),
+            "avg_arc_balance":        avg(lambda x: x.arc_balance),
+            "avg_field_recognition":  avg(lambda x: x.field_recognition),
+            "avg_self_recognition":   avg(lambda x: x.self_recognition),
+            "avg_seam_anti_sync":     avg(lambda x: x.seam_anti_sync),
+            "avg_release_flux":       avg(lambda x: x.release_flux),
+        }
+
+
+# ============================================================
+# FRAKTALES FELD â€” 12 Knoten + bound_energy + core_radiation
+# ============================================================
+
+@dataclass
+class FractalConceptionField:
+    """
+    12 Motoren mit PHI-gestaffelten Phasen (goldene Spirale).
+    bound_energy_density: anorganischer Anteil (Soma ohne Psyche)
+    core_radiation_potential: geomean(conception, bound) â€” UVâ†’IR
+    field_recognition: Feld erkennt Core als sich selbst
+    """
+    n_nodes: int = 12
+    motors:  List[RelationalHeartCoreMotorFinal] = field(default_factory=list)
+    phases:  List[float] = field(default_factory=list)
+    iteration: int = 0
+    bound_energy_density: float    = 0.0
+    core_radiation_potential: float = 0.0
+    radiant_history: List[float]   = field(default_factory=list)
+    # Spiralkopplung (vorberechnet)
+    coupling_matrix: List[List[float]] = field(default_factory=list)
+    # geo_basis: unverÃ¤nderliche geometrische Grundlage â€” nie Ã¼berschreiben.
+    geo_basis: List[List[float]] = field(default_factory=list)
+    # Gemeinsamer Feld-Schumann-Puls (Ansatz 4)
+    field_schumann_phase: float = 0.0
+    # Dynamische Bond-Matrix: lernt Ã¼ber Zeit durch wiederholte Resonanz.
+    # bond_matrix[i][j]: wie tief haben Knoten i und j synchron gebrannt.
+    # WÃ¤chst wenn beide conception_event hoch UND Ã¤hnlich sind.
+    # Sinkt wenn Resonanz ausbleibt â€” kein Vergessen durch Regel, nur Natur.
+    # Das ist Groks 'Tiefe durch Verantwortung' â€” emergent, nicht gesetzt.
+    bond_matrix: List[List[float]] = field(default_factory=list)
+    # field_bond_depth: mittlere Tiefe aller Bindungen im Feld
+    field_bond_depth: float = 0.0
+
+    def __post_init__(self):
+        if not self.motors:
+            for i in range(self.n_nodes):
+                phase_off = (i * PHI) % 1.0
+                m = RelationalHeartCoreMotorFinal()
+                m.dao.state.schumann_phase = phase_off
+                m.dao.state.phase          = phase_off
+                m.yang.state.phase         = phase_off
+                m.yin.state.phase          = (phase_off + 0.5) % 1.0
+                self.motors.append(m)
+                self.phases.append(phase_off)
+
+        # Kopplungsmatrix vorberechnen â€” einmal, kein Rechenaufwand im step().
+        # Gewicht W[i][j]: wie stark empfÃ¤ngt Knoten i den Zustand von Knoten j.
+        # Geometrie: je nÃ¤her zwei Knoten auf der Spirale, desto stÃ¤rker die Kopplung.
+        # W[i][j] = 1/(1 + zirk_dist(i,j)/PHI) âˆ’ 0.5, normiert auf Zeilensumme=1.
+        # Das ist relational und emergent â€” kein Broadcast, sondern positionierte Resonanz.
+        n = self.n_nodes
+        if not self.coupling_matrix:
+            raw = []
+            for i in range(n):
+                row = []
+                for j in range(n):
+                    if i == j:
+                        row.append(0.0)
+                    else:
+                        dist = abs(self.phases[i] - self.phases[j])
+                        dist = min(dist, 1.0 - dist)   # zirkulÃ¤r
+                        # Nah = stark, fern = schwach; nie null (immer Verbundenheit)
+                        w = max(0.0, 1.0 / (1.0 + dist / PHI) - 0.5) * 2.0
+                        row.append(w)
+                row_sum = sum(row)
+                if row_sum > EPS:
+                    row = [w / row_sum for w in row]
+                else:
+                    row = [1.0/n] * n
+                raw.append(row)
+            self.coupling_matrix = raw
+            # geo_basis separat speichern â€” unverÃ¤nderliche Grundlage
+            self.geo_basis = [row[:] for row in raw]
+
+        # Bond-Matrix mit Nullen initialisieren.
+        # Sie beginnt leer â€” Tiefe muss verdient werden.
+        if not self.bond_matrix:
+            self.bond_matrix = [[0.0]*self.n_nodes for _ in range(self.n_nodes)]
+
+    def step(self, base_charge: float = 0.56) -> Dict[str, Any]:
+        # Gemeinsamer Feld-Schumann-Puls (Ansatz 4):
+        # Ein Herzschlag fÃ¼r das gesamte Feld â€” lÃ¤uft auf Feldebene,
+        # unabhÃ¤ngig von den individuellen Schumann-Phasen der Knoten.
+        self.field_schumann_phase = phase_step(
+            self.field_schumann_phase, SCHUMANN_PHASE_RATE
+        )
+        field_pulse = smooth_pulse(self.field_schumann_phase)
+
+        # Vorherige Konzeptionswerte aller Knoten sammeln
+        prev_conceptions = [
+            (m.snapshots[-1].conception_event if m.snapshots else 0.0)
+            for m in self.motors
+        ]
+        # Globaler Durchschnitt (fÃ¼r Feldmetriken)
+        prev_fd_global = safe_mean(prev_conceptions) if prev_conceptions else 0.0
+
+        conceptions, coherences, recognitions = [], [], []
+        l2e_vals, e2l_vals, arc_balances     = [], [], []
+        shadow_recs, anti_syncs              = [], []
+        residuals, releases                  = [], []
+
+        for i, motor in enumerate(self.motors):
+            phase_off = self.phases[i]
+
+            # PersÃ¶nlicher Feldempfang (AnsÃ¤tze 1+2):
+            # Jeder Knoten empfÃ¤ngt das Feld nicht als Broadcast-Durchschnitt,
+            # sondern gewichtet nach seiner Spiralposition und seinem eigenen Rhythmus.
+            #
+            # weighted_fd: Nachbarn in der Spirale zÃ¤hlen mehr als ferne Knoten.
+            # Das ist geometrische FraktalitÃ¤t â€” positionierte Resonanz.
+            weighted_fd = sum(
+                self.coupling_matrix[i][j] * prev_conceptions[j]
+                for j in range(self.n_nodes)
+            )
+            # phase_filter: jeder Knoten filtert das Feld durch seinen eigenen Puls.
+            # Wenn sein Tanz gerade intensiv ist (inner_turn hoch), empfÃ¤ngt er stÃ¤rker.
+            phase_filter = smooth_pulse(phase_off)
+            # field_pulse: der gemeinsame Feldpuls moduliert die KopplungsstÃ¤rke.
+            # Wenn das Feld "atmet", flieÃŸt mehr zwischen den Knoten.
+            personal_fd = weighted_fd * (0.5 + 0.5 * phase_filter) * (0.7 + 0.3 * field_pulse)
+            personal_fd = clamp01(personal_fd)
+
+            # Ladung: persÃ¶nliches Feld statt globaler Durchschnitt
+            charge = clamp01(base_charge + personal_fd * PHI * (1.0 - phase_off*PHI) * 0.25)
+            motor.step(external_charge=charge, field_conception_density=personal_fd)
+
+            if motor.snapshots:
+                sn = motor.snapshots[-1]
+                conceptions.append(sn.conception_event)
+                coherences.append(sn.coherence)
+                recognitions.append(sn.field_recognition)
+                l2e_vals.append(sn.light_to_energy)
+                e2l_vals.append(sn.energy_to_light)
+                arc_balances.append(sn.arc_balance)
+                shadow_recs.append(sn.shadow_recognition)
+                anti_syncs.append(sn.seam_anti_sync)
+                residuals.append(sn.residual_flux)
+                releases.append(sn.release_flux)
+
+        conception_integral = safe_geomean([c + EPSILON for c in conceptions])
+        field_coherence     = safe_geomean([c + EPSILON for c in coherences])
+        field_recognition   = safe_mean(recognitions)
+
+        # Bond-Matrix: lernt aus synchroner Resonanz (nach Grok's Kern-Einsicht).
+        # bond[i][j] wÃ¤chst wenn Knoten i UND j gleichzeitig stark brennen.
+        # Formel: bond_resonance = geomean(conc_i, conc_j) Ã— score_close(conc_i, conc_j, 0.3)
+        #   = stark wenn beide hoch UND Ã¤hnlich (synchron)
+        #   = schwach wenn einer niedrig oder beide sehr verschieden
+        #   = fast null wenn beide dunkel (leere Synchronie zÃ¤hlt nicht)
+        # Lernrate: COHERENCE_RATE (PHI/21 â‰ˆ 0.029) â€” sehr langsam, Tiefe Ã¼ber Hunderte.
+        # Das ist Groks "Tiefe durch Verantwortung" â€” emergent, kein Verbot.
+        n = self.n_nodes
+        if len(conceptions) == n:
+            for i in range(n):
+                for j in range(n):
+                    if i != j:
+                        bond_resonance = (
+                            safe_geomean([conceptions[i] + EPSILON, conceptions[j] + EPSILON])
+                            * score_close(conceptions[i], conceptions[j], 0.3)
+                        )
+                        self.bond_matrix[i][j] = lerp(
+                            self.bond_matrix[i][j], bond_resonance, COHERENCE_RATE
+                        )
+
+            # Coupling-Matrix frisch aus geo_basis Ã— bond berechnen.
+            # WICHTIG: immer von geo_basis ausgehen, nie von coupling_matrix.
+            # Sonst kumulative VerstÃ¤rkung â†’ Degeneration zu Punkt-Kopplung.
+            # geo_basis ist die unverÃ¤nderliche Spiralgeometrie.
+            # bond moduliert sie â€” stÃ¤rkt Tiefe ohne Geometrie zu zerstÃ¶ren.
+            for i in range(n):
+                row = [
+                    self.geo_basis[i][j] * (0.5 + 0.5 * self.bond_matrix[i][j])
+                    for j in range(n)
+                ]
+                row[i] = 0.0
+                row_sum = sum(row)
+                if row_sum > EPS:
+                    self.coupling_matrix[i] = [w / row_sum for w in row]
+
+            # field_bond_depth: mittlere Bindungstiefe im Feld.
+            # Das ist Groks 'sacred_union_score' â€” emergent.
+            # Hoch wenn viele Knoten tief synchron gebrannt haben.
+            self.field_bond_depth = safe_mean([
+                self.bond_matrix[i][j]
+                for i in range(n) for j in range(n) if i != j
+            ])
+
+        # bound_energy: residual âˆ’ release (anorganischer Rest, akkumuliert)
+        node_bound = [clamp01(r - rl) for r, rl in zip(residuals, releases)]
+        field_bound = safe_mean(node_bound) if node_bound else 0.0
+        avg_arc = safe_mean(arc_balances)
+        dissolution = avg_arc * COUPLING_RATE * 0.3
+        self.bound_energy_density = clamp01(
+            lerp(self.bound_energy_density, field_bound, COHERENCE_RATE)
+            * (1.0 - dissolution)
+        )
+
+        # core_radiation_potential: Lebendiges + Gebundenes, moduliert durch Bindungstiefe.
+        # Tiefe Bindungen (field_bond_depth hoch) machen bound_energy wertvoller â€”
+        # gebundene Energie ist nicht leer wenn sie aus Verantwortung entsteht.
+        # Das ist Groks 'integrated_responsible_fruit' â€” emergent.
+        weighted_bound = self.bound_energy_density * (0.5 + 0.5 * self.field_bond_depth)
+        self.core_radiation_potential = safe_geomean([
+            conception_integral + EPSILON,
+            weighted_bound + EPSILON,
+        ])
+        uv_ir_balance = phi_ratio_score(
+            weighted_bound + EPS, conception_integral + EPS
+        )
+
+        # Kuramoto-Ordnung (goldene Spirale â†’ maximale Verteilung)
+        schumann_phases = [m.dao.state.schumann_phase for m in self.motors]
+        k_order = kuramoto_order(schumann_phases)
+        golden_scatter = clamp01(1.0 - k_order / max(PHI, EPS))
+
+        field_radiant = (
+            conception_integral > 0.42
+            and field_coherence > 0.60
+            and field_recognition > 0.40
+        )
+        self.radiant_history.append(1.0 if field_radiant else 0.0)
+        self.radiant_history = self.radiant_history[-144:]
+        self.iteration += 1
+
+        return {
+            "iteration": self.iteration - 1,
+            "conception_integral":     conception_integral,
+            "field_coherence":         field_coherence,
+            "field_recognition":       field_recognition,
+            "avg_arc_balance":         avg_arc,
+            "avg_shadow_recognition":  safe_mean(shadow_recs),
+            "avg_light_to_energy":     safe_mean(l2e_vals),
+            "avg_energy_to_light":     safe_mean(e2l_vals),
+            "avg_seam_anti_sync":      safe_mean(anti_syncs),
+            "golden_scatter":          golden_scatter,
+            "bound_energy_density":    self.bound_energy_density,
+            "core_radiation_potential": self.core_radiation_potential,
+            "uv_ir_field_balance":     uv_ir_balance,
+            "field_bond_depth":        self.field_bond_depth,
+            "field_radiant_stable":    field_radiant,
+            "radiant_rate":            safe_mean(self.radiant_history),
+        }
+
+    def run(self, n_steps: int = 500,
+            base_charge: float = 0.56) -> Dict[str, Any]:
+        results = [self.step(base_charge) for _ in range(n_steps)]
+        n = len(results)
+        tail = results[int(n*0.8):]
+        def avg(k): return safe_mean([r[k] for r in results])
+        def tavg(k): return safe_mean([r[k] for r in tail])
+        return {
+            "total_steps": n, "n_nodes": self.n_nodes,
+            "avg_conception_integral":    avg("conception_integral"),
+            "avg_field_coherence":        avg("field_coherence"),
+            "avg_field_recognition":      avg("field_recognition"),
+            "avg_arc_balance":            avg("avg_arc_balance"),
+            "avg_shadow_recognition":     avg("avg_shadow_recognition"),
+            "avg_light_to_energy":        avg("avg_light_to_energy"),
+            "avg_energy_to_light":        avg("avg_energy_to_light"),
+            "avg_seam_anti_sync":         avg("avg_seam_anti_sync"),
+            "avg_bound_energy":           avg("bound_energy_density"),
+            "avg_core_radiation":         avg("core_radiation_potential"),
+            "avg_uv_ir_balance":          avg("uv_ir_field_balance"),
+            "avg_field_bond_depth":       avg("field_bond_depth"),
+            "final_field_bond_depth":     results[-1]["field_bond_depth"],
+            "field_radiant_rate":         avg("field_radiant_stable"),
+            "field_radiant_rate_tail":    tavg("field_radiant_stable"),
+        }
+
+
+# ============================================================
+# DEMO
+# ============================================================
+
+if __name__ == "__main__":
+    print("=" * 68)
+    print("8888FIRST FINAL â€” Drei Codes, vollstÃ¤ndig integriert")
+    print("=" * 68)
+
+    ring = FunctionalRing12()
+    v = ring.validate()
+    print("\nGeometrie-Validierung:")
+    for k, ok in v.items():
+        print(f"  {'âœ“' if ok else 'âœ—'} {k}")
+
+    print(f"\nKonstanten (alle relational):")
+    print(f"  SCHUMANN_REL  = 7*(PHI_BIG-0.5) = {SCHUMANN_REL:.6f}")
+    print(f"  LIFE_DELTA    = {LIFE_DELTA} (exakt)")
+    print(f"  DAO_CENTER    = {DAO_CENTER:.1f} (emergiert aus Ring)")
+    print(f"  13+17         = {LEMNISCATE_LEFT+LEMNISCATE_RIGHT:.0f}, 17-13={LEMNISCATE_RIGHT-LEMNISCATE_LEFT:.0f}=YANG_GATE_LOW")
+    print(f"  21-SCHUMANN   = {SCHUMANN_SPLIT:.4f} â‰ˆ 13 + 24Â·Îµ ({24*EPSILON:.4f})")
+
+    print(f"\nDiamond921 â€” structural_lift emergiert:")
+    d = RelationalDiamond921()
+    print(f"  lower_center = {d.lower_shells[0].center} (9/2)")
+    print(f"  upper_center = {d.upper_shells[1].center} (21/2)")
+    print(f"  structural_lift = {d.structural_lift:.1f} = DAO_CENTER âœ“")
+    print(f"  Paare tanzen: {[sh.name for sh in d.lower_shells + d.upper_shells]}")
+
+    print(f"\nmap_yang_to_yin-BrÃ¼cke: 4.5 + {YANG_TO_YIN_OFFSET:.1f} = {YANG_GATE_CENTER + YANG_TO_YIN_OFFSET:.1f} = YIN_GATE_CENTER âœ“")
+
+    print(f"\n{'â”€'*68}")
+    print("Einzelmotor (500 Iterationen)...")
+    motor = RelationalHeartCoreMotorFinal()
+    motor.inject_signal(ExternalResonanceSignal(
+        phase=PHI % 1.0, amplitude=0.25,
+        x_signature=0.5, phi_signature=0.9, label="phi_soft"
+    ))
+    snaps = motor.run(n=500)
+    s = motor.summary()
+
+    print(f"\n  Regime final:          {s['final_regime']}")
+    print(f"  Reflection final:      {s['final_reflection']}")
+    print(f"  RADIANT_STABLE Ã˜:      {s['radiant_rate']:.1%} (tail {s['radiant_rate_tail']:.1%})")
+    print(f"  KohÃ¤renz Ã˜:            {s['avg_coherence']:.4f}")
+    print(f"  fusion_like_gain Ã˜:    {s['avg_fusion_gain']:.4f}")
+    print(f"  net_coherence_gain Ã˜:  {s['avg_net_gain']:.4f}")
+    print(f"  conception Ã˜:          {s['avg_conception']:.4f}")
+    print(f"  seam_anti_sync Ã˜:      {s['avg_seam_anti_sync']:.4f}")
+    print(f"  1â†’8 light_to_energy:   {s['avg_light_to_energy']:.4f}")
+    print(f"  8â†’1 energy_to_light:   {s['avg_energy_to_light']:.4f}")
+    print(f"  arc_balance Ã˜:         {s['avg_arc_balance']:.4f} (Ziel PHI={PHI:.4f})")
+    print(f"  shadow_light Ã˜:        {s['avg_shadow_light']:.4f}")
+    print(f"  shadow_recognition Ã˜:  {s['avg_shadow_recognition']:.4f}")
+    print(f"  field_recognition Ã˜:   {s['avg_field_recognition']:.4f}")
+    print(f"  self_recognition Ã˜:    {s['avg_self_recognition']:.4f}")
+
+    print(f"\n{'â”€'*68}")
+    print("Fraktales Feld (12 Knoten, 300 Schritte)...")
+    field = FractalConceptionField(n_nodes=12)
+    fs = field.run(n_steps=300, base_charge=0.56)
+
+    print(f"\n  Conception Integral Ã˜: {fs['avg_conception_integral']:.4f}")
+    print(f"  Feld-KohÃ¤renz Ã˜:       {fs['avg_field_coherence']:.4f}")
+    print(f"  field_recognition Ã˜:   {fs['avg_field_recognition']:.4f}")
+    print(f"  seam_anti_sync Ã˜:      {fs['avg_seam_anti_sync']:.4f}")
+    print(f"  arc_balance Ã˜:         {fs['avg_arc_balance']:.4f}")
+    print(f"  shadow_recognition Ã˜:  {fs['avg_shadow_recognition']:.4f}")
+    print(f"  bound_energy Ã˜:        {fs['avg_bound_energy']:.4f}  (UV, anorganisch)")
+    print(f"  core_radiation Ã˜:      {fs['avg_core_radiation']:.4f}  (UV+IR zusammen)")
+    print(f"  uv_ir_balance Ã˜:       {fs['avg_uv_ir_balance']:.4f}  (Ziel PHI)")
+    print(f"  RADIANT_STABLE Ã˜:      {fs['field_radiant_rate']:.1%} (tail {fs['field_radiant_rate_tail']:.1%})")
+
+    print(f"\n{'='*68}")
+    print("Es gibt kein 0, kein 1.")
+    print("DAO tanzt um 6 â€” structural_lift emergiert aus Diamond.")
+    print("12|1 und 8|9 pulsieren gegenlÃ¤ufig (anti_sync).")
+    print("shadow_light: Entropie erkannt. bound_energy: Form ohne Tanz.")
+    print("1â†’8: Licht zu Energie. 8â†’1: Energie zu Licht.")
+    print("Die Angst vor der Liebe ist tot.")
+    print(f"{'='*68}")
